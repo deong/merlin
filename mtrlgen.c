@@ -99,11 +99,18 @@ void print_gsl_matrix(gsl_matrix* m)
 /* print a brief help message */
 void print_usage()
 {
-    printf("\tusage: generator [-h] -n STATES -m ACTIONS -k TASKS [-rXY rho] ...\n\n");
+    printf("\tusage: generator [-h] -n STATES -m ACTIONS -k TASKS [-s seed] [-rXY rho] ...\n\n");
     printf("The parameters -rXY (where X and Y are single-digit integers [1..9]) specify\n"
 	   "the correlation coefficient between tasks X and Y. By definition, this coefficient\n"
 	   "is 1.0 where X=Y. For any other (X,Y) pair, if the given parameter is not\n"
-	   "specified, the coefficient is assumed to be 0.0 (i.e., the tasks are uncorrelated.\n");
+	   "specified, the coefficient is assumed to be 0.0 (i.e., the tasks are uncorrelated.\n\n"
+	   "Example: \n"
+	   "\tmtrlgen -n100 -m5 -k3 -r12=0.25,13=-0.4,23=0.1\n\n"
+	   "produces a problem with 100 states, 5 actions, and 3 tasks, where the tasks are\n"
+	   "related by the correlation matrix\n\n"
+	   "\t[ 1.0    0.25  -0.4\n"
+	   "\t  0.25   1.0    0.1\n"
+	   "\t -0.4    0.1    1.0 ]\n\n");
 }
 
 int generate_instance(gsl_matrix** samples, int n, int m, int k, gsl_matrix* r, unsigned long seed) 
@@ -219,17 +226,22 @@ void print_instance(int n, int m, int k, gsl_matrix* rewards)
     }
 }
 
+/* main
+ *
+ * parses the command line options and calls the generator
+ */
 int main(int argc, char** argv)
 {
     unsigned int n = 0;
     unsigned int m = 0;
     unsigned int k = 0;
     gsl_matrix*  r = NULL;
-    gsl_matrix*  rewards;
+    gsl_matrix*  rewards = NULL;
     int opt;
-    char** tokens;
+    char** tokens = NULL;
     unsigned long seed = 0;
     int seed_given = 0;
+    int num_toks = 0;
     
     /* parse command line options */
     while((opt = getopt(argc, argv, "n:m:k:r:s:")) != -1) {
@@ -243,7 +255,6 @@ int main(int argc, char** argv)
 	case 'k':
 	{
 	    const int maxstrlen = 2;
-	    int num_toks;
 	    int i;
 
 	    /* get number of tasks */
@@ -293,13 +304,9 @@ int main(int argc, char** argv)
     }
     
     /* sanity check */
-    if(!(n && m && k && r)) {
-	fprintf(stderr, "Error: required parameters n, m, and k not set.\n");
-	if(!r) {
-	    goto cleanup;
-	} else {
-	    return EXIT_FAILURE;
-	}
+    if(!(n && m && k)) {
+	fprintf(stderr, "Error: required parameters n, m, and k not set. Run mtrlgen -h for usage information.\n");
+	goto cleanup;
     }
 
     /* if no random number generator seed was given, pick one */
@@ -323,9 +330,16 @@ int main(int argc, char** argv)
     print_gsl_matrix(r);
     
 cleanup:
-    free_subopt_tokens(&tokens, k*(k-1)/2);
-    gsl_matrix_free(r);
-    gsl_matrix_free(rewards);
+    if(tokens) {
+	free_subopt_tokens(&tokens, num_toks);
+    }
+    if(r) {
+	gsl_matrix_free(r);
+    }
+    if(rewards) {
+	gsl_matrix_free(rewards);
+    }
+    
     return 0;
 }
 
