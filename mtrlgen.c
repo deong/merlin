@@ -43,7 +43,8 @@ void populate_subopts(char** tokens, int k);
 void free_subopt_tokens(char*** tokens, int sz);
 void print_usage();
 void print_gsl_matrix(gsl_matrix* m);
-int  generate_instance(gsl_matrix** samples, int n, int m, int k, gsl_matrix* r, unsigned long seed);
+int  generate_instance(gsl_matrix** samples, int n, int m, int k, gsl_matrix* r, 
+		       double density, unsigned long seed);
 unsigned long get_seed();
 
 /*
@@ -65,9 +66,9 @@ void populate_subopts(char** tokens, int k)
 
     /* fill out the tokens */
     for(i=1; i<=k; ++i) {
-	for(j=i+1; j<=k; ++j) {
-	    sprintf(tokens[index++], "%1d%1d", i, j);
-	}
+        for(j=i+1; j<=k; ++j) {
+            sprintf(tokens[index++], "%1d%1d", i, j);
+        }
     }
     tokens[index] = NULL;
 }
@@ -77,7 +78,7 @@ void free_subopt_tokens(char*** tokens, int sz)
 {
     int i;
     for(i=0; i<sz; ++i) {
-	free((*tokens)[i]);
+        free((*tokens)[i]);
     }
     free(*tokens);
 }
@@ -87,11 +88,11 @@ void print_gsl_matrix(gsl_matrix* m)
 {
     int i, j;
     for(i=0; i<m->size1; ++i) {
-	printf(";; ");
-	for(j=0; j<m->size2; ++j) {
-	    printf("%10.6f ", gsl_matrix_get(m, i, j));
-	}
-	printf("\n");
+        printf(";; ");
+        for(j=0; j<m->size2; ++j) {
+            printf("%10.6f ", gsl_matrix_get(m, i, j));
+        }
+        printf("\n");
     }
     printf("\n");
 }
@@ -99,21 +100,22 @@ void print_gsl_matrix(gsl_matrix* m)
 /* print a brief help message */
 void print_usage()
 {
-    printf("\tusage: generator [-h] -n STATES -m ACTIONS -k TASKS [-s seed] [-rXY rho] ...\n\n");
+    printf("\tusage: generator [-h] -n STATES -m ACTIONS -k TASKS [-d density] [-s seed] [-rXY rho] ...\n\n");
     printf("The parameters -rXY (where X and Y are single-digit integers [1..9]) specify\n"
-	   "the correlation coefficient between tasks X and Y. By definition, this coefficient\n"
-	   "is 1.0 where X=Y. For any other (X,Y) pair, if the given parameter is not\n"
-	   "specified, the coefficient is assumed to be 0.0 (i.e., the tasks are uncorrelated.\n\n"
-	   "Example: \n"
-	   "\tmtrlgen -n100 -m5 -k3 -r12=0.25,13=-0.4,23=0.1\n\n"
-	   "produces a problem with 100 states, 5 actions, and 3 tasks, where the tasks are\n"
-	   "related by the correlation matrix\n\n"
-	   "\t[ 1.0    0.25  -0.4\n"
-	   "\t  0.25   1.0    0.1\n"
-	   "\t -0.4    0.1    1.0 ]\n\n");
+           "the correlation coefficient between tasks X and Y. By definition, this coefficient\n"
+           "is 1.0 where X=Y. For any other (X,Y) pair, if the given parameter is not\n"
+           "specified, the coefficient is assumed to be 0.0 (i.e., the tasks are uncorrelated.\n\n"
+           "Example: \n"
+           "\tmtrlgen -n100 -m5 -k3 -r12=0.25,13=-0.4,23=0.1\n\n"
+           "produces a problem with 100 states, 5 actions, and 3 tasks, where the tasks are\n"
+           "related by the correlation matrix\n\n"
+           "\t[ 1.0    0.25  -0.4\n"
+           "\t  0.25   1.0    0.1\n"
+           "\t -0.4    0.1    1.0 ]\n\n");
 }
 
-int generate_instance(gsl_matrix** samples, int n, int m, int k, gsl_matrix* r, unsigned long seed) 
+int generate_instance(gsl_matrix** samples, int n, int m, int k, gsl_matrix* r, 
+		      double density, unsigned long seed) 
 {
     /* the total number of samples for each task is nm (states * actions).
      * we'll reshape this into a matrix form when we're done. */
@@ -131,17 +133,17 @@ int generate_instance(gsl_matrix** samples, int n, int m, int k, gsl_matrix* r, 
     T = gsl_matrix_alloc(r->size1, r->size2);
     gsl_matrix_memcpy(T, r);
     if(gsl_linalg_cholesky_decomp(T) == GSL_EDOM) {
-	return 1;
+        return 1;
     }
 
     /* create a column vector of the means of each task's distribution 
      * TODO: note that currently, all means are zero */
     mu = gsl_vector_calloc(k);
-
+    
     /* make sure that mu is a column vector and copy it N times */
     v = gsl_matrix_alloc(k, N);
     for(i=0; i<N; ++i) {
-	gsl_matrix_set_col(v, i, mu);
+        gsl_matrix_set_col(v, i, mu);
     }
 
     /* create an Nxk matrix of normally distributed random numbers */
@@ -149,9 +151,10 @@ int generate_instance(gsl_matrix** samples, int n, int m, int k, gsl_matrix* r, 
     gsl_rng_set(rng, seed);
     randn = gsl_matrix_alloc(N, k);
     for(i=0; i<N; ++i) {
-	for(j=0; j<k; ++j) {
-	    gsl_matrix_set(randn, i, j, gsl_ran_gaussian(rng, 1.0));
-	}
+        for(j=0; j<k; ++j) {
+	    double p = gsl_rng_uniform(rng);
+	    gsl_matrix_set(randn, i, j, (p<=density) ? gsl_ran_gaussian(rng, 1.0) : 0.0);
+        }
     }
     
     /* multiply it by the cholesky decomposition of R */
@@ -187,11 +190,11 @@ unsigned long get_seed()
     unsigned long seed;
     int fd = open("/dev/random", O_RDONLY|O_NONBLOCK);
     if((fd!=-1) && (read(fd, &seed, sizeof(unsigned long)) == sizeof(unsigned long))) {
-	return (unsigned long)seed;
+        return (unsigned long)seed;
     } else {
-	fprintf(stderr, "failed to read random bytes from /dev/random..."
-		"falling back to system clock\n");
-	return (unsigned long)(time(NULL));
+        fprintf(stderr, "failed to read random bytes from /dev/random..."
+                "falling back to system clock\n");
+        return (unsigned long)(time(NULL));
     }
 }
 
@@ -213,16 +216,16 @@ void print_instance(int n, int m, int k, gsl_matrix* rewards)
     
     printf("%d\n%d\n%d\n\n", n, m, k);
     for(i=0; i<num_cols; ++i) {
-	col = gsl_matrix_column(rewards, i);
-	/*task = gsl_matrix_view_vector(&col.vector, n, m);*/
-	index = 0;
-	for(state=0; state<n; ++state) {
-	    for(action=0; action<m; ++action) {
-		printf("%8.4f", gsl_vector_get(&col.vector, index++));
-	    }
-	    printf("\n");
-	}
-	printf("\n");
+        col = gsl_matrix_column(rewards, i);
+        /*task = gsl_matrix_view_vector(&col.vector, n, m);*/
+        index = 0;
+        for(state=0; state<n; ++state) {
+            for(action=0; action<m; ++action) {
+                printf("%8.4f", gsl_vector_get(&col.vector, index++));
+            }
+            printf("\n");
+        }
+        printf("\n");
     }
 }
 
@@ -242,82 +245,88 @@ int main(int argc, char** argv)
     unsigned long seed = 0;
     int seed_given = 0;
     int num_toks = 0;
+    double density = 0.1;
     
     /* parse command line options */
-    while((opt = getopt(argc, argv, "n:m:k:r:s:")) != -1) {
-	switch(opt) {
-	case 'n':
-	    n = atol(optarg);
-	    break;
-	case 'm':
-	    m = atol(optarg);
-	    break;
-	case 'k':
-	{
-	    const int maxstrlen = 2;
-	    int i;
+    while((opt = getopt(argc, argv, "n:m:k:r:s:d:h:")) != -1) {
+        switch(opt) {
+        case 'n':
+            n = atol(optarg);
+            break;
+            case 'm':
+            m = atol(optarg);
+            break;
+        case 'k':
+        {
+            const int maxstrlen = 2;
+            int i;
 
-	    /* get number of tasks */
-	    k = atoi(optarg);
+            /* get number of tasks */
+            k = atoi(optarg);
 
-	    /* initialize the covariance matrix */
-	    r = gsl_matrix_calloc(k, k);
-	    gsl_matrix_set_identity(r);
-	    
-	    /* also set up the tokens array for suboption parsing */
-	    num_toks = (int)(k*(k-1)/2);
-	    tokens = (char**)malloc((num_toks+1)*sizeof(char*));
-	    for(i=0; i<num_toks; ++i) {
-		tokens[i] = (char*)malloc((maxstrlen+1)*sizeof(char));
-	    }
-	    populate_subopts(tokens, k);
+            /* initialize the covariance matrix */
+            r = gsl_matrix_calloc(k, k);
+            gsl_matrix_set_identity(r);
+            
+            /* also set up the tokens array for suboption parsing */
+            num_toks = (int)(k*(k-1)/2);
+            tokens = (char**)malloc((num_toks+1)*sizeof(char*));
+            for(i=0; i<num_toks; ++i) {
+                tokens[i] = (char*)malloc((maxstrlen+1)*sizeof(char));
+            }
+            populate_subopts(tokens, k);
+            break;
+        }
+        case 'r': 
+        {
+            char* subopts = optarg;
+            char* value;
+            while(*subopts != '\0') {
+                int suboptpos = getsubopt(&subopts, tokens, &value);
+                if(suboptpos < 0) {
+                    fprintf(stderr, "Error: invalid r-specification. All -rXY pairs must have 0<X<Y.\n");
+                    goto cleanup;
+                }
+                int xy = atoi(tokens[suboptpos]);
+                int x = xy/10;
+                int y = xy%10;
+                assert(x<y);
+                gsl_matrix_set(r, x-1, y-1, atof(value));
+                gsl_matrix_set(r, y-1, x-1, atof(value));
+            }
+            break;
+        }
+        case 's':
+            seed_given = 1;
+            seed = (unsigned long)atol(optarg);
+            break;
+	case 'd':
+	    density = atof(optarg);
+	    /* TODO: make it so that at least one value is non-zero */
+	    assert(density>0.01);
 	    break;
-	}
-	case 'r': 
-	{
-	    char* subopts = optarg;
-	    char* value;
-	    while(*subopts != '\0') {
-		int suboptpos = getsubopt(&subopts, tokens, &value);
-		if(suboptpos < 0) {
-		    fprintf(stderr, "Error: invalid r-specification. All -rXY pairs must have 0<X<Y.\n");
-		    goto cleanup;
-		}
-		int xy = atoi(tokens[suboptpos]);
-		int x = xy/10;
-		int y = xy%10;
-		assert(x<y);
-		gsl_matrix_set(r, x-1, y-1, atof(value));
-		gsl_matrix_set(r, y-1, x-1, atof(value));
-	    }
-	    break;
-	}
-	case 's':
-	    seed_given = 1;
-	    seed = (unsigned long)atol(optarg);
-	    break;
-	case 'h':
-	default:
-	    print_usage();
-	    return EXIT_FAILURE;
-	}
+        case 'h':
+        default:
+            print_usage();
+            return EXIT_FAILURE;
+        }
     }
     
     /* sanity check */
     if(!(n && m && k)) {
-	fprintf(stderr, "Error: required parameters n, m, and k not set. Run mtrlgen -h for usage information.\n");
-	goto cleanup;
+        fprintf(stderr, "Error: required parameters n, m, and k not set. Run mtrlgen -h for usage information.\n");
+        goto cleanup;
     }
 
     /* if no random number generator seed was given, pick one */
     if(!seed_given) {
-	seed = get_seed();
+        seed = get_seed();
     }
     
     /* generate instance */
-    if(generate_instance(&rewards, n, m, k, r, seed) != 0) {
-	fprintf(stderr, "Error generating instance. Verify that covariance matrix is positive-definite.\n");
-	goto cleanup;
+    if(generate_instance(&rewards, n, m, k, r, density, seed) != 0) {
+        fprintf(stderr, "Error generating instance. Verify that covariance matrix is positive-definite.\n");
+        goto cleanup;
     }
     
     /* print instance */
@@ -331,13 +340,13 @@ int main(int argc, char** argv)
     
 cleanup:
     if(tokens) {
-	free_subopt_tokens(&tokens, num_toks);
+        free_subopt_tokens(&tokens, num_toks);
     }
     if(r) {
-	gsl_matrix_free(r);
+        gsl_matrix_free(r);
     }
     if(rewards) {
-	gsl_matrix_free(rewards);
+        gsl_matrix_free(rewards);
     }
     
     return 0;
