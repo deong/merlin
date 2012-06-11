@@ -44,7 +44,7 @@ void free_subopt_tokens(char*** tokens, int sz);
 void print_usage();
 void print_gsl_matrix(gsl_matrix* m);
 int  generate_instance(gsl_matrix** samples, int n, int m, int k, gsl_matrix* r, 
-		       double density, unsigned long seed);
+		       gsl_vector *mean, gsl_vector *stddev, double density, unsigned long seed);
 unsigned long get_seed();
 
 /*
@@ -115,13 +115,12 @@ void print_usage()
 }
 
 int generate_instance(gsl_matrix** samples, int n, int m, int k, gsl_matrix* r, 
-		      double density, unsigned long seed) 
+		      gsl_vector *mean, gsl_vector *stddev, double density, unsigned long seed) 
 {
     /* the total number of samples for each task is nm (states * actions).
      * we'll reshape this into a matrix form when we're done. */
     const int N = m*n;
     gsl_matrix* T;
-    gsl_vector* mu;
     gsl_matrix* v;
     gsl_matrix* randn;
     gsl_rng* rng;
@@ -136,16 +135,12 @@ int generate_instance(gsl_matrix** samples, int n, int m, int k, gsl_matrix* r,
         return 1;
     }
 
-    /* create a column vector of the means of each task's distribution 
-     * TODO: note that currently, all means are zero */
-    mu = gsl_vector_calloc(k);
-    
     /* make sure that mu is a column vector and copy it N times */
     v = gsl_matrix_alloc(k, N);
     for(i=0; i<N; ++i) {
-        gsl_matrix_set_col(v, i, mu);
+        gsl_matrix_set_col(v, i, mean);
     }
-
+    
     /* create an Nxk matrix of normally distributed random numbers */
     rng = gsl_rng_alloc(gsl_rng_mt19937);
     gsl_rng_set(rng, seed);
@@ -153,7 +148,7 @@ int generate_instance(gsl_matrix** samples, int n, int m, int k, gsl_matrix* r,
     for(i=0; i<N; ++i) {
         for(j=0; j<k; ++j) {
 	    double p = gsl_rng_uniform(rng);
-	    gsl_matrix_set(randn, i, j, (p<=density) ? gsl_ran_gaussian(rng, 1.0) : 0.0);
+	    gsl_matrix_set(randn, i, j, (p<=density) ? gsl_ran_gaussian(rng, gsl_vector_get(stddev, j)) : 0.0);
         }
     }
     
@@ -172,7 +167,6 @@ int generate_instance(gsl_matrix** samples, int n, int m, int k, gsl_matrix* r,
     gsl_matrix_transpose_memcpy(*samples, samplesT);
     
     gsl_rng_free(rng);
-    gsl_vector_free(mu);
     gsl_matrix_free(randn);
     gsl_matrix_free(v);
     gsl_matrix_free(samplesT);
@@ -245,10 +239,12 @@ int main(int argc, char** argv)
     unsigned long seed = 0;
     int seed_given = 0;
     int num_toks = 0;
+    gsl_vector *mean = NULL;
+    gsl_vector *stddev = NULL;
     double density = 0.1;
     
     /* parse command line options */
-    while((opt = getopt(argc, argv, "n:m:k:r:s:d:h:")) != -1) {
+    while((opt = getopt(argc, argv, "n:m:k:r:o:v:s:d:h:")) != -1) {
         switch(opt) {
         case 'n':
             n = atol(optarg);
@@ -267,6 +263,11 @@ int main(int argc, char** argv)
             /* initialize the covariance matrix */
             r = gsl_matrix_calloc(k, k);
             gsl_matrix_set_identity(r);
+            
+            /* initialize the means and standard deviation vectors */
+            mean = gsl_vector_calloc(k);
+            stddev = gsl_vector_alloc(k);
+            gsl_vector_set_all(stddev, 1.0);
             
             /* also set up the tokens array for suboption parsing */
             num_toks = (int)(k*(k-1)/2);
@@ -300,11 +301,37 @@ int main(int argc, char** argv)
             seed_given = 1;
             seed = (unsigned long)atol(optarg);
             break;
-	case 'd':
-	    density = atof(optarg);
-	    /* TODO: make it so that at least one value is non-zero */
-	    assert(density>0.01);
-	    break;
+        case 'o':
+        {
+            char *start = optarg;
+            char *end;
+            double value;
+            int i = 0;
+            while (i<k) {
+                value = strtod(start, &end);
+                start = &(end[1]);
+                gsl_vector_set(mean,i++,value);
+            }
+            break;
+        }
+        case 'v':
+        {
+            char *start = optarg;
+            char *end;
+            double value;
+            int i = 0;
+            while (i<k) {
+                value = strtod(start, &end);
+                start = &(end[1]);
+                gsl_vector_set(stddev,i++,value);
+            }
+            break;
+        }
+        case 'd':
+            density = atof(optarg);
+            /* TODO: make it so that at least one value is non-zero */
+            assert(density>0.01);
+            break;
         case 'h':
         default:
             print_usage();
@@ -324,7 +351,7 @@ int main(int argc, char** argv)
     }
     
     /* generate instance */
-    if(generate_instance(&rewards, n, m, k, r, density, seed) != 0) {
+    if(generate_instance(&rewards, n, m, k, r, mean, stddev, density, seed) != 0) {
         fprintf(stderr, "Error generating instance. Verify that covariance matrix is positive-definite.\n");
         goto cleanup;
     }
@@ -347,6 +374,12 @@ cleanup:
     }
     if(rewards) {
         gsl_matrix_free(rewards);
+    }
+    if(mean) {
+        gsl_vector_free(mean);
+    }
+    if(stddev) {
+        gsl_vector_free(stddev);
     }
     
     return 0;
