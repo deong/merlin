@@ -125,6 +125,7 @@ int generate_instance(gsl_matrix** samples, int n, int m, int k, gsl_matrix* r,
     gsl_matrix* T;
     gsl_matrix* v;
     gsl_matrix* randn;
+    gsl_matrix *mask;
     gsl_rng* rng;
     int i;
     int j;
@@ -144,17 +145,68 @@ int generate_instance(gsl_matrix** samples, int n, int m, int k, gsl_matrix* r,
     }
     
     /* create an Nxk matrix of normally distributed random numbers */
+    // rng = gsl_rng_alloc(gsl_rng_mt19937);
+    // gsl_rng_set(rng, seed);
+    // randn = gsl_matrix_calloc(N, k);
+    // for(i=0; i<N; ++i) {
+        // for(j=0; j<k; ++j) {
+            // if (gsl_rng_uniform(rng) <= density)
+                // gsl_matrix_set(randn, i, j, gsl_ran_gaussian(rng, gsl_vector_get(stddev, j)));
+            // else
+                // gsl_matrix_set(v, i, j, 0.0);
+        // }
+    // }
+    
     rng = gsl_rng_alloc(gsl_rng_mt19937);
     gsl_rng_set(rng, seed);
     randn = gsl_matrix_calloc(N, k);
     for(i=0; i<N; ++i) {
         for(j=0; j<k; ++j) {
-            if (gsl_rng_uniform(rng) <= density)
-                gsl_matrix_set(randn, i, j, gsl_ran_gaussian(rng, gsl_vector_get(stddev, j)));
-            else
-                gsl_matrix_set(v, j, i, 0.0);
+            gsl_matrix_set(randn, i, j, gsl_ran_gaussian(rng, gsl_vector_get(stddev, j)));
         }
     }
+    
+    mask = gsl_matrix_calloc(N, k);
+    
+    /* Sparsisty test code, needs cleanup */
+    double div;
+    int t;
+    double temp;
+    gsl_matrix *maskc = gsl_matrix_calloc(N,k);
+    
+    for (i = 0; i < N; ++i) {
+        for (j = 0; j < k; ++j) {
+            if (gsl_rng_uniform(rng) <= density) gsl_matrix_set(mask, i, j, 1.0);
+        }
+    }
+    
+    for (i = 0; i < N; ++i) {
+        
+        for (j = 0; j < k; ++j) {
+            div = 1.0;
+            p = density;
+            for (t = 0; t < k; ++t) {
+                if ( gsl_matrix_get(mask, i, t) == 1.0) {
+                    div += 1.0;
+                    temp = gsl_matrix_get(r, j, t);
+                    p = temp < 0.0 ? p - temp : p + temp;
+                }
+            }
+            if (gsl_rng_uniform(rng) <= p/div) gsl_matrix_set(mask, i, j, 1.0);
+            gsl_matrix_set(maskc,i,j,p/div);
+        }
+    }
+    
+    gsl_matrix *c = pearson_correlation(mask);
+    
+    printf("Printout of calculation matrix for sparsity:\n");
+    for(i=0;i<N;++i){
+        for(j=0;j<k;++j){
+            printf("%8.4f:%2.1f", gsl_matrix_get(maskc, i, j), gsl_matrix_get(mask,i,j));
+        }
+        printf("\n");
+    }
+    /* End of test code for sparsisty */
     
     /* multiply it by the cholesky decomposition of R */
     *samples = gsl_matrix_alloc(N, k);
@@ -185,21 +237,35 @@ int generate_instance(gsl_matrix** samples, int n, int m, int k, gsl_matrix* r,
         }
     }
     
+    gsl_matrix_mul_elements(*samples, mask);
     
     /* Print out the reward matrix */
-    /*printf("Reward matrices without reshaping. (Should be removed)\n");
+    printf("Reward matrices without reshaping. (Should be removed)\n");
     for(i=0;i<N;++i){
         for(j=0;j<k;++j){
             printf("%8.4f", gsl_matrix_get(*samples, i, j));
         }
         printf("\n");
-    }*/
+    }
     
+    /* Test code that checks end result sparsity, needs clean up */
+    int counter;
+    
+    printf("\n\n");
+    for(i=0;i<k;++i){
+        counter = 0;
+        for(j=0;j<N;++j){
+            if(gsl_matrix_get(*samples, j, i)==0.0) ++counter;
+        }
+        printf("%d, %f\n",counter,(double)counter/N);
+    }
+    /* End of test code */
     
     gsl_rng_free(rng);
     gsl_matrix_free(randn);
     gsl_matrix_free(v);
     gsl_matrix_free(T);
+    gsl_matrix_free(mask);
     return 0;
 }
 
@@ -221,8 +287,22 @@ unsigned long get_seed()
     }
 }
 
+/* Find matrix r's pearson correlation matrix, 
+ * uses r's columns as seperate entities to correlate
+ * 
+ * Usage:  gsl_matrix *pearson = pearson_correlation(r);
+ * Input:  gsl matrix pointer r with dimensions Nxk
+ * Output: pointer to kxk symmetric gsl matrix pearson where element
+ *         i, j is the pearson correlation of column i and j of r
+ *         if r is NULL then so is pearson
+ */
 gsl_matrix* pearson_correlation(gsl_matrix* r)
 {
+    if ( r == NULL){
+        gsl_matrix* pearson;
+        return pearson;
+    }
+    
     int i;
     int j;
     double p;
@@ -232,11 +312,11 @@ gsl_matrix* pearson_correlation(gsl_matrix* r)
     int N = r->size1;
     
     gsl_matrix* pearson = gsl_matrix_alloc(k, k);
+    gsl_matrix_set_identity(pearson);
     
-    for (i = 0; i < k; ++i) {
-        a = gsl_matrix_column(r,i).vector;
-        p = gsl_stats_correlation(a.data, a.stride, a.data, a.stride, N);
-        gsl_matrix_set(pearson,i,i,p);
+    for (i = 0; i < k-1; ++i) {
+        a = gsl_matrix_column(r, i).vector;
+        
         for (j = i+1; j < k; ++j) {
             b = gsl_matrix_column(r,j).vector;
             p = gsl_stats_correlation(a.data, a.stride, b.data, b.stride, N);
@@ -458,11 +538,9 @@ int main(int argc, char** argv)
         goto cleanup;
     }
     
-    
-    
-    
     /* print instance */
     print_instance(n, m, k, rewards);
+    
     /* print a footer identifying generator parameters */
     printf("\n\n");
     printf(";; states=%d, actions=%d, tasks=%d\n", n, m, k);
@@ -474,20 +552,20 @@ int main(int argc, char** argv)
     printf("\n");
     print_gsl_matrix(c);
     
-    /* Calculate and print the sum absolute error per permutation */
-    int u, w;
-    double ans = 0;
-    double t,x,y;
-    for (u = 0; u < k; ++u) {
-        for (w = u+1; w < k; ++w){
-            x = gsl_matrix_get(r,u,w);
-            y = gsl_matrix_get(c,u,w);
-            t = x - y;
-            ans = t<0.0 ? ans-t : ans+t;
-        }
-    }
-    u = (k*k-k)/2;
-    printf("\n%8.4f\n",ans/u);
+    // /* Calculate and print the sum absolute error per permutation, should be removed */
+    // int u, w;
+    // double ans = 0;
+    // double t,x,y;
+    // for (u = 0; u < k; ++u) {
+        // for (w = u+1; w < k; ++w){
+            // x = gsl_matrix_get(r,u,w);
+            // y = gsl_matrix_get(c,u,w);
+            // t = x - y;
+            // ans = t<0.0 ? ans-t : ans+t;
+        // }
+    // }
+    // u = (k*k-k)/2;
+    // printf("\nAbsolute error-sum: %8.4f\n",ans/u);
     
 cleanup:
     if(tokens) {
@@ -517,4 +595,3 @@ cleanup:
     
     return 0;
 }
-
