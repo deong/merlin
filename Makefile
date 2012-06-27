@@ -1,6 +1,7 @@
 mtrlgen : mtrlgen.c
-	gcc -ggdb mtrlgen.c -o mtrlgen -lgsl -lgslcblas
+	gcc -Wall -ggdb mtrlgen.c -o mtrlgen -lgsl -lgslcblas
 
 .PHONY : clean
 clean:
 	rm -f mtrlgen
+
