@@ -155,17 +155,17 @@ int generate_instance(gsl_matrix** samples, int n, int m, int k, gsl_matrix* r,
     
     /* Original random generated matrix, will cause errors if used */
     /* create an Nxk matrix of normally distributed random numbers */
-    // rng = gsl_rng_alloc(gsl_rng_mt19937);
-    // gsl_rng_set(rng, seed);
-    // randn = gsl_matrix_calloc(N, k);
-    // for(i=0; i<N; ++i) {
-        // for(j=0; j<k; ++j) {
-            // if (gsl_rng_uniform(rng) <= density)
-                // gsl_matrix_set(randn, i, j, gsl_ran_gaussian(rng, gsl_vector_get(stddev, j)));
-            // else
-                // gsl_matrix_set(v, i, j, 0.0);
-        // }
-    // }
+    /*rng = gsl_rng_alloc(gsl_rng_mt19937);
+    gsl_rng_set(rng, seed);
+    randn = gsl_matrix_calloc(N, k);
+    for(i=0; i<N; ++i) {
+        for(j=0; j<k; ++j) {
+            if (gsl_rng_uniform(rng) <= density)
+                gsl_matrix_set(randn, i, j, gsl_ran_gaussian(rng, gsl_vector_get(stddev, j)));
+            else
+                gsl_matrix_set(v, i, j, 0.0);
+        }
+    }*/
     
     /* Current nonzero random matrix, generates one value in each row.
      * This has not been correlated.
@@ -184,20 +184,20 @@ int generate_instance(gsl_matrix** samples, int n, int m, int k, gsl_matrix* r,
      * a random distribution and density. This data has not been correlated.
      * Either this code block or the one above should be commented out.
      */
-    // rng = gsl_rng_alloc(gsl_rng_mt19937);
-    // gsl_rng_set(rng, seed);
-    // randn = gsl_matrix_calloc(nonzero_N, k);
-    // for(i=0; i<nonzero_N; ++i) {
-        // p = 0.0;
-        // while(p == 0.0)
-            // for(j=0; j<k; ++j) {
-                // if(gsl_rng_uniform(rng) <= density){
-                    // gsl_matrix_set(randn, i, j, gsl_ran_gaussian(rng, gsl_vector_get(stddev, j)));
-                    // ++p;
-                // }
-            // }
+    /*rng = gsl_rng_alloc(gsl_rng_mt19937);
+    gsl_rng_set(rng, seed);
+    randn = gsl_matrix_calloc(nonzero_N, k);
+    for(i=0; i<nonzero_N; ++i) {
+        p = 0.0;
+        while(p == 0.0)
+            for(j=0; j<k; ++j) {
+                if(gsl_rng_uniform(rng) <= density){
+                    gsl_matrix_set(randn, i, j, gsl_ran_gaussian(rng, gsl_vector_get(stddev, j)));
+                    ++p;
+                }
+            }
         
-    // }
+    }*/
     
     /* Print out the pre-reward matrix, should be removed */
     /*printf("Non-zero random matrix without reshaping. (Should be removed)\n");
@@ -281,9 +281,9 @@ int generate_instance(gsl_matrix** samples, int n, int m, int k, gsl_matrix* r,
      */
     for(i = 0; i < nonzero_N; ++i){
         mapping_array[i] = (int)floor(gsl_rng_uniform(rng)*N);
-        j = 0;
         
         // This while loop maintains the necessary one-to-one property of the mapping function
+        j = 0;
         while(j < i){
             if(mapping_array[i] == mapping_array[j]){
                 mapping_array[i] = (int)floor(gsl_rng_uniform(rng)*N);
@@ -428,6 +428,68 @@ void print_instance(int n, int m, int k, gsl_matrix* rewards)
     }
 }
 
+void print_to_matlab(int n, int m, int k, gsl_matrix *rewards, char* name)
+{
+    FILE *fs = NULL;
+    int num_cols = rewards->size2;
+    gsl_vector_view col;
+    int i, state, action, index;
+    
+    if(name == NULL){
+        fprintf(stderr, "Warning: Output file and matrix name unspecified, using A as default\n");
+        name = "A";
+    }
+    
+    char *filename = (char*)malloc(strlen(name) + 3);
+    strcpy(filename, name);
+    strcat(filename, ".m");
+    
+    if((fs = fopen(filename, "w"))){
+        printf("Printing to file %s\n", filename);
+        fprintf(fs, "%s_count = %d;\n\n", name, k);
+        
+        for(i=0; i<num_cols; ++i) {
+            fprintf(fs, "%s_t%d = [\n\t", name, i + 1);
+            col = gsl_matrix_column(rewards, i);
+            index = 0;
+            for(state=0; state<n; ++state) {
+                for(action=0; action<m; ++action) {
+                    fprintf(fs, "%8.4f,", gsl_vector_get(&col.vector, index++));
+                }
+                fprintf(fs,";\n\t");
+            }
+            fprintf(fs,"];\n\n");
+        }
+        /* Test code, should probably be dropped */
+        
+        int sq = (int)(ceil(sqrt((double)k)));
+        int j;
+        char *fn = "imagesc";
+        
+        fprintf(fs, "figure(1); cla;\n\n");
+        
+        index = 0;
+        for(i = 1; i < sq + 1; ++i){
+            for(j = 1; j < sq + 1; ++j){
+                if(index < k){
+                    fprintf(fs, "subplot(%d,%d,%d);\n",sq,sq,++index);
+                    fprintf(fs, "%s(%s_t%d)\n", fn, name, index);
+                    fprintf(fs, "title('%s\\_t%d');\naxis image;\n\n", name, index);
+                }
+            }
+        }
+        
+        fprintf(fs, "colormap(jet)\n\n");
+        
+        /* Test code ends */
+        
+        fclose(fs);
+    } else
+        fprintf(stderr, "Error: Could not open %s\n", filename);
+        
+    free(filename);
+}
+
 /* main
  *
  * parses the command line options and calls the generator
@@ -441,6 +503,7 @@ int main(int argc, char** argv)
     gsl_matrix*  rewards = NULL;
     int opt;
     char** tokens = NULL;
+    char* matlab_name = NULL;
     unsigned long seed = 0;
     int seed_given = 0;
     int num_toks = 0;
@@ -451,7 +514,7 @@ int main(int argc, char** argv)
     double density = 0.1;
     
     /* parse command line options */
-    while((opt = getopt(argc, argv, "n:m:k:r:o:v:s:d:h:l:u:")) != -1) {
+    while((opt = getopt(argc, argv, "n:m:k:r:o:v:s:d:h:l:u:q:")) != -1) {
         switch(opt) {
         case 'n':
             n = atol(optarg);
@@ -583,6 +646,9 @@ int main(int argc, char** argv)
             /* TODO: make it so that at least one value is non-zero */
             assert(density>0.01);
             break;
+        case 'q':
+            matlab_name = optarg;
+            break;
         case 'h':
         default:
             print_usage();
@@ -613,12 +679,12 @@ int main(int argc, char** argv)
     /* print a footer identifying generator parameters */
     printf("\n\n");
     printf(";; states=%d, actions=%d, tasks=%d\n", n, m, k);
-    printf(";; correlation matrix=\n");
+    printf(";; User correlation matrix=\n");
     print_gsl_matrix(r);
     
     /* Calculate and print the pearson correlation of the generated rewards, should be removed */
     gsl_matrix *c = pearson_correlation(rewards);
-    printf("\n");
+    printf("\n;; Calculated correlation matrix=\n");
     print_gsl_matrix(c);
     
     /* Calculate and print the sum absolute error per permutation, should be removed */
@@ -635,6 +701,9 @@ int main(int argc, char** argv)
     }
     u = 1;//(k*k-k)/2;
     printf("\nAbsolute error-sum: %8.4f\n",ans/u);
+    
+    /* Print to matlab file, */
+    if(matlab_name) print_to_matlab(n,m,k,rewards,matlab_name);
     
 cleanup:
     if(tokens) {
