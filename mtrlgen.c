@@ -49,6 +49,7 @@ int  generate_instance(gsl_matrix** samples, int n, int m, int k, gsl_matrix* r,
 		       gsl_vector *mean, gsl_vector *stddev, double density, unsigned long seed, gsl_vector *lower, gsl_vector *upper);
 unsigned long get_seed();
 gsl_matrix* pearson_correlation(gsl_matrix* r);
+void print_to_matlab(int n, int m, int k, gsl_matrix *rewards, char* name);
 
 /*
  * create an array of suboption names for the correlation pairs.
@@ -359,8 +360,8 @@ unsigned long get_seed()
     }
 }
 
-/* Find matrix r's pearson correlation matrix, 
- * uses r's columns as seperate entities to correlate
+/* Find matrix subject's pearson correlation matrix, 
+ * uses subject's columns as seperate entities to correlate
  * 
  * Usage:  gsl_matrix *pearson = pearson_correlation(subject);
  * Input:  gsl matrix pointer subject with dimensions Nxk
@@ -428,6 +429,19 @@ void print_instance(int n, int m, int k, gsl_matrix* rewards)
     }
 }
 
+/* Generates a MATLAB script file name.m containing k and all reward matrices.
+ * Running the script will create variable $name$_count = k,
+ * and k matrices named name_ti = reward matrix for task i
+ * where i in [0..k-1].
+ * Currently also generates MATLAB code at the end of the script that displays
+ * the rewards as heat maps.
+ *
+ * Usage:  print_to_matlab(n,m,k,rewards,name);
+ * Input:  n,m,k are integers
+ *         rewards is a nmXk gsl_matrix pointer
+ *         name is a null terminated string, if NULL then defaults to "A"
+ * Output: Only sideeffects, the creation/changing of file name.m
+ */
 void print_to_matlab(int n, int m, int k, gsl_matrix *rewards, char* name)
 {
     FILE *fs = NULL;
