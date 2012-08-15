@@ -119,7 +119,8 @@ void print_usage()
 }
 
 int generate_instance(gsl_matrix** samples, int n, int m, int k, gsl_matrix* r, 
-		      gsl_vector *mean, gsl_vector *stddev, double density, unsigned long seed, gsl_vector *lower, gsl_vector *upper) 
+		      gsl_vector *mean, gsl_vector *stddev, double density, unsigned long seed,
+              gsl_vector *lower, gsl_vector *upper) 
 {
     /* the total number of samples for each task is nm (states * actions).
      * we'll reshape this into a matrix form when we're done. */
@@ -132,10 +133,13 @@ int generate_instance(gsl_matrix** samples, int n, int m, int k, gsl_matrix* r,
     int i;
     int j;
     double p;
-    int nonzero_N = (int)ceil(N*density);
+    const int nonzero_N = (int)ceil(N*density);
+    //const int zero_N = N - nonzero_N;
     
     /* Memory allocation */
     unsigned int mapping_array[nonzero_N];
+    //if(zero_N > 0)unsigned int zeros[zero_N];
+    unsigned int zeros[N];
     T = gsl_matrix_alloc(r->size1, r->size2);
     v = gsl_matrix_alloc(nonzero_N, k);
     randn = gsl_matrix_calloc(nonzero_N, k);
@@ -277,10 +281,68 @@ int generate_instance(gsl_matrix** samples, int n, int m, int k, gsl_matrix* r,
         }
     }
     
-    /* Generate an mapping order to map unmapped_samples to the return matrix *samples
+    /* Generate zeros matrix with N elements.
+     * If
+     */
+    for(i = 0; i < N; ++i){
+        zeros[i] = 0;
+    }
+    int g = (int)floor(gsl_rng_uniform(rng)*N);
+    
+    /* Generate a mapping order to map unmapped_samples to the return matrix *samples
      * and simutaneously perform said mapping.
      */
     for(i = 0; i < nonzero_N; ++i){
+        /*mapping_array[i] = (int)floor(gsl_rng_uniform(rng)*N);
+        
+        // This while loop maintains the necessary one-to-one property of the mapping function
+        j = 0;
+        while(j < i){
+            if(mapping_array[i] == mapping_array[j]){
+                mapping_array[i] = (int)floor(gsl_rng_uniform(rng)*N);
+                j = 0;
+            } else ++j;
+        }*/
+        
+        while(zeros[g]) g = (int)floor(gsl_rng_uniform(rng)*N);
+        
+        zeros[g] = 1;
+        mapping_array[i] = g;
+        
+        for(j = 0; j < k; ++j)
+            gsl_matrix_set(*samples,mapping_array[i],j,gsl_matrix_get(unmapped_samples,i,j));
+            
+    }
+    
+    /*test-code*/
+    
+    /* Calculate and print the pearson correlation of the generated rewards, should be removed */
+    gsl_matrix *c = pearson_correlation(unmapped_samples);
+    printf("\n;; Calculated correlation matrix=\n");
+    print_gsl_matrix(c);
+    
+    /* Calculate and print the sum absolute error per permutation, should be removed */
+    int u, w;
+    double ans = 0;
+    double t,x,y;
+    for (u = 0; u < k; ++u) {
+        for (w = u+1; w < k; ++w){
+            x = gsl_matrix_get(r,u,w);
+            y = gsl_matrix_get(c,u,w);
+            t = x - y;
+            ans = t<0.0 ? ans-t : ans+t;
+        }
+    }
+    u = 1;//(k*k-k)/2;
+    printf("\nAbsolute error-sum: %8.4f\n",ans/u);
+    
+    /*test-code end*/
+    
+    /* Generate a mapping order to map unmapped_samples to the return matrix *samples
+     * and simutaneously perform said mapping.
+     * Repeat for test-code
+     */
+    /*for(i = 0; i < nonzero_N; ++i){
         mapping_array[i] = (int)floor(gsl_rng_uniform(rng)*N);
         
         // This while loop maintains the necessary one-to-one property of the mapping function
@@ -295,7 +357,7 @@ int generate_instance(gsl_matrix** samples, int n, int m, int k, gsl_matrix* r,
         for(j = 0; j < k; ++j)
             gsl_matrix_set(*samples,mapping_array[i],j,gsl_matrix_get(unmapped_samples,i,j));
             
-    }
+    }*/
     
     /*printf("\nOrder: ");
     for(i=0;i<nonzero_N;++i) printf("%d, ",mapping_array[i]);
@@ -333,6 +395,95 @@ int generate_instance(gsl_matrix** samples, int n, int m, int k, gsl_matrix* r,
         printf("%d, %f\n",counter,(double)counter/N);
     }*/
     /* End of test code */
+    
+    /*printf("\nSilly code\n\n");
+    
+    for(i=0;i<N;++i){
+        for(j=0;j<k;++j){
+            gsl_matrix_set(*samples, i, j, i);
+            printf("%8.4f, ", gsl_matrix_get(*samples, i, j));
+        }
+        printf("\n");
+    }
+    
+    printf("\n");*/
+    
+    gsl_matrix *fuu = gsl_matrix_alloc(N,k);
+    int max_iter = 12;
+    int curr_iter = 0;
+    int index, kt;
+    double sum, div, temp;
+    p = 1.0;
+    
+    while(p > 0.01 && curr_iter < max_iter){
+        gsl_matrix_memcpy(fuu, *samples);
+        p = 0.0;
+        
+        for(i = 0; i < n; ++i){
+            for(j = 0; j < m; ++j){
+                index = i*m + j;
+                for(kt = 0; kt < k; ++kt){
+                    div = 1.0;
+                    sum = gsl_matrix_get(fuu, index, kt);
+                    
+                    if(i != 0 && j != 0){
+                        sum += gsl_matrix_get(fuu, (index - m - 1), kt);
+                        div += 1.0;
+                    }
+                    
+                    if(i != 0){
+                        sum += gsl_matrix_get(fuu, (index - m), kt);
+                        div += 1.0;
+                    }
+                    
+                    if(i != 0 && j != m-1){
+                        sum += gsl_matrix_get(fuu, (index - m + 1), kt);
+                        div += 1.0;
+                    }
+                    
+                    if(j != 0){
+                        sum += gsl_matrix_get(fuu, (index - 1), kt);
+                        div += 1.0;
+                    }
+                    
+                    if(j != m-1){
+                        sum += gsl_matrix_get(fuu, (index + 1), kt);
+                        div += 1.0;
+                    }
+                    
+                    if(i != n-1 && j != 0){
+                        sum += gsl_matrix_get(fuu, (index + m - 1), kt);
+                        div += 1.0;
+                    }
+                    
+                    if(i != n-1){
+                        sum += gsl_matrix_get(fuu, (index + m), kt);
+                        div += 1.0;
+                    }
+                    
+                    if(i != n-1 && j != m-1){
+                        sum += gsl_matrix_get(fuu, (index + m + 1), kt);
+                        div += 1.0;
+                    }
+                    
+                    gsl_matrix_set(*samples, index, kt, sum/div);
+                    temp = fabs(gsl_matrix_get(fuu, index, kt) - gsl_matrix_get(*samples, index, kt));
+                    if(temp > p) p = temp;
+                }
+            }
+        }
+        ++curr_iter;
+    }
+    
+    for(i = 0; i < N; ++i){
+        if(zeros[i] == 0)
+            for(j = 0; j < k; ++j){
+                if(fabs(gsl_matrix_get(*samples, i, j)) < 0.01)
+                   gsl_matrix_set(*samples, i, j, 0.0);
+            }
+    }
+    
+    printf("\n%d iterations",curr_iter);
     
     gsl_rng_free(rng);
     gsl_matrix_free(randn);
@@ -468,7 +619,7 @@ void print_to_matlab(int n, int m, int k, gsl_matrix *rewards, char* name)
             index = 0;
             for(state=0; state<n; ++state) {
                 for(action=0; action<m; ++action) {
-                    fprintf(fs, "%8.4f,", gsl_vector_get(&col.vector, index++));
+                    fprintf(fs, "%8.12f,", gsl_vector_get(&col.vector, index++));
                 }
                 fprintf(fs,";\n\t");
             }
@@ -487,7 +638,9 @@ void print_to_matlab(int n, int m, int k, gsl_matrix *rewards, char* name)
             for(j = 1; j < sq + 1; ++j){
                 if(index < k){
                     fprintf(fs, "subplot(%d,%d,%d);\n",sq,sq,++index);
-                    fprintf(fs, "%s(%s_t%d)\n", fn, name, index);
+                    fprintf(fs, "CLIM = max(max(abs(%s_t%d)));\n", name, index);
+                    fprintf(fs, "%s(%s_t%d, [-CLIM, CLIM])\n", fn, name, index);
+                    //printf(fs, "%s(abs(%s_t%d))\n", fn, name, index);
                     fprintf(fs, "title('%s\\_t%d');\naxis image;\n\n", name, index);
                 }
             }
@@ -688,7 +841,7 @@ int main(int argc, char** argv)
     }
     
     /* print instance */
-    print_instance(n, m, k, rewards);
+    //print_instance(n, m, k, rewards);
     
     /* print a footer identifying generator parameters */
     printf("\n\n");

@@ -1,0 +1,14 @@
+actions: 
+
+     12  density: -123.45e-2 
+     
+     correlation:     [1 23 3 4]
+     
+      states: 7
+      tasks: 3
+      class: maze
+      
+      seed: 2007
+        
+        
+            

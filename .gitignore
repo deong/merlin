@@ -1,3 +1,5 @@
-mtrlgen.exe
-mtrlgen.exe.stackdump
+*.exe
+*.stackdump
 *.m
+*.out
+*.asv
