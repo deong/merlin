@@ -41,7 +41,7 @@ int li_add(struct list *li, char token);
 
 int main(int argc, char **argv)
 {
-    if(argc < 2 && argc > 3){ 
+    if(argc < 2 || argc > 3){ 
         fprintf(stderr,"%s\n\t%s\n\t%s\n\t%s\n\t%s\n\t%s\n\t%s\n\t%s\n\t%s\n\t%s%s%s",
             "Error:  No input file specified.",
             "The file should contain one line which is a space seperated",
@@ -177,7 +177,7 @@ int prepare_input(char **input, FILE * fs)
         (*input)[i] = temp->val;
         temp = temp->next;
     }
-    input[li->size] = '\0';
+    (*input)[li->size] = '\0';
     
     return 0;
 }
