@@ -26,7 +26,7 @@ struct maze_struct {
     unsigned int height;
     unsigned int width;
     unsigned int goalcount;
-    unsigned int start;
+    unsigned int start; // Start state of the maze.
     unsigned int *goal; // An array of states the size of goalcount,
                         // where each state is a goal.
     gsl_matrix *pathways; // A (height*width) X 4 matrix, or
