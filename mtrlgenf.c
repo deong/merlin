@@ -32,7 +32,7 @@ struct maze_struct {
     gsl_matrix *pathways; // A (height*width) X 4 matrix, or
                           // states X actions, which defines a pathway
                           // out of a given state in a given direction.
-} *maze = NULL; // using global pointer maze as the generated maze.
+} *maze = NULL; // using global pointer maze as a pointer to the generated maze.
 
 struct list_elem{
     //An element of a linked list where each link contains a character.
@@ -49,9 +49,10 @@ struct list{
 
 struct buffered_read{
     // This entity maintains the input file stream and reads a maximum of
-    // B_SIZE characters from the stream.
+    // B_SIZE characters from the stream to a buffer, the buffer is refilled
+    // when needed.
     // Also maintains line which is the current line in the input file
-    // for error handling. Not 100% reliable.
+    // for error handling. Line is not 100% reliable.
     FILE *fs;
     char *buffer;
     char *current;
@@ -63,12 +64,15 @@ struct buffered_read{
 
 /* Forward definitions, NOTE: some are missing and others are missing */
 void print_usage();
+/* Unused declarations.
+ * TODO: add functions to match declarations or remove declarations. */
 int  generate_instance(gsl_matrix** samples, int n, int m, int k, gsl_matrix* r, 
 		       gsl_vector *mean, gsl_vector *stddev, double density, unsigned long seed,
                gsl_vector *lower, gsl_vector *upper);
 unsigned long get_seed();
 gsl_matrix* pearson_correlation(gsl_matrix* r);
 void print_to_matlab(int n, int m, int k, gsl_matrix *rewards, char* name);
+/* End of unused declarations */
 
 struct list * li_alloc();
 void li_free(struct list *li);
@@ -82,7 +86,9 @@ char * br_peek(struct buffered_read *br);
 void maze_alloc(unsigned int h, unsigned int w, unsigned int tasks);
 void maze_free();
 int is_not_goal(int c);
+char is_goal(int state);
 void maze_random(unsigned long seed, unsigned int extra);
+int prepare_maze_output(FILE *fs);
 int br_cmp(struct buffered_read *br, const char *prestring, const char *match);
 int contains(char *token, const char *check);
 char * br_skip(struct buffered_read *br);
@@ -97,6 +103,7 @@ void print_gsl_vector(FILE *fs, gsl_vector *input, const char *comment,
             const char *name);
 void print_gsl_matrix(FILE *fs, gsl_matrix *input, const char *comment,
             const char *name);
+void print_maze(FILE *fs);
 void print_data(FILE *fs, int class, int tasks, int states, int actions, int seed_given, 
                 double density, char *file_name, gsl_matrix *user_corr, gsl_vector *mean,
                 gsl_vector *stddev, gsl_vector *lower, gsl_vector *upper);
@@ -111,7 +118,7 @@ void print_usage()
 }
 
 /* Returns a newly allocated list ready for use with
- *  a list function. Denoted by a "li_" suffix.
+ *  a list function. List functions are denoted by a "li_" suffix.
  */
 struct list * li_alloc()
 {
@@ -192,7 +199,7 @@ struct buffered_read * br_alloc(const char *filename)
                 br->end = &br->buffer[B_SIZE];
                 br->current = br->end;
                 *br->end = '\0';
-                br->line = 1;
+                br->line = 1; 
             }
             else {
                 fprintf(stderr, 
@@ -238,11 +245,13 @@ char * br_get(struct buffered_read *br)
     char *val = NULL;
     
     if( br->current == br->end ){
+        // Refill buffer.
         int offset = fread(br->buffer, 1, B_SIZE, br->fs);
         br->end = &(br->buffer[offset]);
         br->current = br->buffer;
         if(offset) val = br->current++;
     } else {
+        // increment buffer pointer.
         val = br->current++;
     }
     
@@ -271,6 +280,7 @@ void br_jam(struct buffered_read *br)
 char * br_peek(struct buffered_read *br)
 {
     if( feof(br->fs) && (br->current == br->end) ) return NULL;
+    
     if( br->current == br->end ){
         int offset = fread(br->buffer, 1, B_SIZE, br->fs);
         br->end = &(br->buffer[offset]);
@@ -287,7 +297,7 @@ char * br_peek(struct buffered_read *br)
 void maze_alloc(unsigned int h, unsigned int w, unsigned int tasks)
 {
     if(maze){
-        fprintf(stderr, "Warning: An attempt was made to allocate a maze when one alread exists\n");
+        fprintf(stderr, "Warning: An attempt was made to allocate a maze when one already exists\n");
     } else {
         if( (maze = (struct maze_struct *) malloc(sizeof(struct maze_struct))) ){
             int i;
@@ -316,7 +326,7 @@ void maze_free()
         free(maze);
         maze = NULL;
     } else {
-        fprintf(stderr, "Warning: attempt made to free maze null pointer.\n");
+        fprintf(stderr, "Warning: Attempt was made to free maze null pointer.\n");
     }
 }
 
@@ -326,7 +336,7 @@ void maze_free()
  *  if both "seed" and "state" are strings that might be part of the
  *  input, then if 's' is on the buffer the buffer needs to be advanced,
  *  if 'e' is now on the buffer then match is "eed" not "seed" and "s"
- *  is the prestring. This is done for error handling. 
+ *  is the prestring. This method was chosen for error reporting. 
  */
 int br_cmp(struct buffered_read *br, const char *prestring, const char *match)
 {
@@ -339,14 +349,20 @@ int br_cmp(struct buffered_read *br, const char *prestring, const char *match)
         if( (val = br_get(br)) ){
             read[i] = *(val);
             if(read[i] != match[i]) break;
-        } else 
+        } else {
+            i--;
             break;
+        }
     }
     if(++i < length){
         read[i] = '\0';
-        fprintf(stderr, 
-                  "Error: While reading line %d. Expected \"%s%s\", found %s.\n",
-                  br->line, prestring ? prestring : "", match, read);
+        if(prestring)
+            fprintf(stderr, 
+                  "Error: While reading line %d. Expected \"%s%s\", found %s%s.\n",
+                  br->line, prestring, match, prestring, read);
+        else fprintf(stderr,
+                  "Error: While reading line %d. Expected \"%s\", found %s.\n",
+                  br->line, match, read);
         free(read);
         return 1;
     }
@@ -813,7 +829,7 @@ void print_maze(FILE *fs)
  *  a transistion matrix and rewards matrix. 
  *  TODO: The rewards need reworking. 
  */
-int prepare_maze_output(FILE *fs, FILE *tfs, FILE *rfs)
+int prepare_maze_output(FILE *fs)
 {
     if(maze){
         //TODO:
@@ -1220,19 +1236,13 @@ int main(int argc, char **argv)
     rng = gsl_rng_alloc(gsl_rng_mt19937);
     gsl_rng_set(rng, seed_given);
     
-    FILE *tfs = NULL, *rfs = NULL;
-    
     switch(class){
     case 1:
-        //tfs = fopen("cfg.t", "w");
-        //rfs = fopen("cfg.r", "w");
         maze_alloc(states, actions, tasks);
         maze_random(seed_given, states);
         print_maze(stdout);
-        prepare_maze_output(fs, tfs, rfs);
+        prepare_maze_output(fs);
         maze_free();
-        //fclose(tfs);
-        //fclose(rfs);
         break;
     }
     
