@@ -1,7 +1,7 @@
 #define B_SIZE 4096
 #define WHITE_SPACE " \n\r\t\v\f"
 #define DIGIT "0123456789"
-#define DELIMITER ",;\n\t\v\f\r"
+#define DELIMITER " ,;\n\t\v\f\r"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -104,9 +104,9 @@ void print_gsl_vector(FILE *fs, gsl_vector *input, const char *comment,
 void print_gsl_matrix(FILE *fs, gsl_matrix *input, const char *comment,
             const char *name);
 void print_maze(FILE *fs);
-void print_data(FILE *fs, int class, int tasks, int states, int actions, int seed_given, 
-                double density, char *file_name, gsl_matrix *user_corr, gsl_vector *mean,
-                gsl_vector *stddev, gsl_vector *lower, gsl_vector *upper);
+void print_data(FILE *fs, const char *comment, int class, int tasks, int states, int actions,
+                int seed_given, double density, char *file_name, gsl_matrix *user_corr,
+                gsl_vector *mean, gsl_vector *stddev, gsl_vector *lower, gsl_vector *upper);
 
 gsl_rng *rng = NULL;
 
@@ -716,22 +716,28 @@ int get_str(struct buffered_read *br, char **output, const char *start,
         return 2;
     }
     
-    while( (temp = br_peek(br)) && !(contains(temp, delimiter)) ){
-        br_get(br);
-        if( contains(temp, DIGIT) || contains(temp, "-+eE") ){
+    if(start)
+        while( (temp = br_peek(br)) && !(contains(temp, delimiter)) ){
+            br_get(br);
+            if( contains(temp, DIGIT) || contains(temp, "-+eE") ){
+                li_add(li, *temp);
+            } else if( *temp == '.' && contains( br_peek(br), DIGIT ) ) {
+                li_add(li, '.');
+            } else if( (li->tail) && contains(temp, WHITE_SPACE) && li->tail->val != ' ' ) {
+                li_add(li, ' ');
+            }
+            else{
+                fprintf(stderr,
+                    "Error: In line %d. Found %c when trying to fill %s.",
+                    br->line, *temp, action_name);
+                return 3;
+            }
+        }
+    else
+        while( (temp = br_peek(br)) && !(contains(temp, delimiter)) ){
+            br_get(br);
             li_add(li, *temp);
-        } else if( *temp == '.' && contains( br_peek(br), DIGIT ) ) {
-            li_add(li, '.');
-        } else if( (li->tail) && contains(temp, WHITE_SPACE) && li->tail->val != ' ' ) {
-            li_add(li, ' ');
         }
-        else{
-            fprintf(stderr,
-                "Error: In line %d. Found %c when trying to fill %s.",
-                br->line, *temp, action_name);
-            return 3;
-        }
-    }
     
     if( temp && !(contains(temp, delimiter)) ){
         fprintf(stderr, 
@@ -823,10 +829,6 @@ void print_maze(FILE *fs)
         fprintf(fs, "##");
     }
     fprintf(fs, "#\n\n");
-    
-    // print_gsl_matrix(maze->pathways, "Pathways");
-    // fprintf(fs, "\n");
-    
 }
 
 /* Creates and prints to file stream fs the specification of the maze.
@@ -854,47 +856,23 @@ int prepare_maze_output(FILE *fs)
         int i,j,d;
         
         for(i = 0; i < s; ++i){
-            
-            d = gsl_matrix_get(m, i, 0) ? i-w: -1;
+            d = gsl_matrix_get(m, i, 0) ? i-w : -1;
             gsl_matrix_set(transition, i, 0, d);
-            /*for(j = 0; j < t; ++j){
-                if( (maze->goal)[j] == d )
-                    gsl_matrix_set(rewards, i*a, j, r);
-            }*/
             
-            d = gsl_matrix_get(m, i, 1) ? i+1: -1;
+            d = gsl_matrix_get(m, i, 1) ? i+1 : -1;
             gsl_matrix_set(transition, i, 1, d);
-            /*for(j = 0; j < t; ++j){
-                if( (maze->goal)[j] == d )
-                    gsl_matrix_set(rewards, i*a+1, j, r);
-            }*/
             
-            d = gsl_matrix_get(m, i, 2) ? i+w: -1;
+            d = gsl_matrix_get(m, i, 2) ? i+w : -1;
             gsl_matrix_set(transition, i, 2, d);
-            /*for(j = 0; j < t; ++j){
-                if( (maze->goal)[j] == d )
-                    gsl_matrix_set(rewards, i*a+2, j, r);
-            }*/
             
-            d = gsl_matrix_get(m, i, 3) ? i-1: -1;
+            d = gsl_matrix_get(m, i, 3) ? i-1 : -1;
             gsl_matrix_set(transition, i, 3, d);
-            /*for(j = 0; j < t; ++j){
-                if( (maze->goal)[j] == d )
-                    gsl_matrix_set(rewards, i*a+3, j, r);
-            }*/
-            
         }
         
         for(i = 0; i < t; ++i){
             gsl_matrix_set(rewards, (maze->goal)[i], i, r);
         }
         
-        //fprintf(fs, "tasks=%d\nstates=%d\nactions=%d\n",
-        //    t, s, a);
-        /*print_gsl_matrix(fs, transition, NULL, "transistions");
-        print_gsl_matrix(fs, rewards, NULL, "rewards");*/
-        //gsl_matrix_fwrite(tfs, transition);
-        //gsl_matrix_fwrite(rfs, rewards);
         fprintf(fs, "%d %d %d ", t, s, a);
         for(i = 0; i < s; ++i) for(j = 0; j < a; ++j)
             fprintf(fs, "%d ", (int)gsl_matrix_get(transition, i, j));
@@ -909,32 +887,32 @@ int prepare_maze_output(FILE *fs)
     return 0;
 }
 
+/* Prints the gsl_matrix input to the filestream fs with the title name and each line prefaced
+ *  with the given comment string.
+ */
 void print_gsl_vector(FILE *fs, gsl_vector *input, const char *comment, const char *name)
 {
     if(input){
         int count = input->size;
         int i;
         
-        if(comment)
-            fprintf(fs, "\n%s  %s =\n%s  [\n%s   ",
-            comment, name ? name : "", comment, comment);
-        else 
-            fprintf(fs, "\n%s =\n[\n   ", name ? name : "");
-
+        fprintf(fs, "\n%s%s =\n%s[\n%s",
+            comment, name ? name : "unnamed vector", comment, comment);
+        
         for(i = 0; i < count; ++i){
             fprintf(fs, "%8.4f  ", gsl_vector_get(input, i));
         }
         
-        if(comment)
-            fprintf(fs, "\n%s  ]\n", comment);
-        else
-            fprintf(fs, "\n]\n");
+        fprintf(fs, "\n%s]\n", comment);
             
     } else
-        fprintf(fs, "%s  The %s has yet to be allocated.\n",
-            comment ? comment : "", name ? name : "unnamed vector");
+        fprintf(fs, "%sThe %s has yet to be allocated.\n",
+            comment, name ? name : "unnamed vector");
 }
 
+/* Prints the gsl_matrix input to the filestream fs with the title name and each line prefaced
+ *  with the given comment string.
+ */
 void print_gsl_matrix(FILE *fs, gsl_matrix *input, const char *comment, const char *name)
 {
     if(input){
@@ -943,49 +921,53 @@ void print_gsl_matrix(FILE *fs, gsl_matrix *input, const char *comment, const ch
         int i;
         int j;
         
-        if(comment)
-            fprintf(fs, "\n%s  %s =\n%s  [\n", comment, name ? name : "",
-                    comment);
-        else
-            fprintf(fs, "\n%s =\n[\n", name ? name : "");
-            
+        fprintf(fs, "\n%s%s =\n%s[\n", comment, name ? name : "unnamed matrix", comment);
+        
         for(i = 0; i < rows; ++i){
-            if(comment)
-                fprintf(fs, "%s   ", comment);
+            fprintf(fs, "%s", comment);
             for(j = 0; j < columns; ++j){
                 fprintf(fs, "%8.4f  ", gsl_matrix_get(input, i, j));
             }
             fprintf(fs, "\n");
         }
         
-        if(comment)
-            fprintf(fs, "%s  ]\n", comment);
-        else
-            fprintf(fs, "]\n");
+        fprintf(fs, "%s]\n", comment);
     } else
-        fprintf(fs, "%s  The %s has yet to be allocated.\n",
-            comment ? comment : "", name ? name : "unnamed matrix");
+        fprintf(fs, "%sThe %s has yet to be allocated.\n",
+            comment, name ? name : "unnamed matrix");
 }
 
-void print_data(FILE *fs, int class, int tasks, int states, int actions, int seed_given,
-                double density, char *file_name, gsl_matrix *user_corr, gsl_vector *mean,
-                gsl_vector *stddev, gsl_vector *lower, gsl_vector *upper)
+/* print_data() prints all the data to the given filestream, prefaced by the given comment string.
+ */
+void print_data(FILE *fs, const char *comment, int class, int tasks, int states, int actions,
+                int seed_given, double density, char *file_name, gsl_matrix *user_corr,
+                gsl_vector *mean, gsl_vector *stddev, gsl_vector *lower, gsl_vector *upper)
 {
-    fprintf(fs, "\n;;  class: %d\n;;  #task: %d, #state: %d, #action: %d\n",
-            class, tasks, states, actions);
-    fprintf(fs, ";;  Output to file: %s, density: %8.2f, seed: %d\n",
-            file_name, density, seed_given);
+    int i;
+    char *comment_s = (char *)malloc(sizeof(char)*(strlen(comment) + 3));
     
-    print_gsl_matrix(fs, user_corr, ";;", "Correlation matrix");
+    for(i = 0; i < strlen(comment); i++)
+        comment_s[i] = comment[i];
+    comment_s[i] = ' ';
+    comment_s[i+1] = ' ';
+    comment_s[i+2] = '\0';
     
-    print_gsl_vector(fs, stddev, ";;", "Standard deviation vector");
+    fprintf(fs, "\n%sclass: %d\n%s#task: %d, #state: %d, #action: %d\n",
+            comment_s, class, comment_s, tasks, states, actions);
+    fprintf(fs, "%sOutput to file: %s, density: %8.2f, seed: %d\n",
+            comment_s, file_name, density, seed_given);
     
-    print_gsl_vector(fs, mean, ";;", "Mean vector");
+    print_gsl_matrix(fs, user_corr, comment_s, "Correlation matrix");
     
-    print_gsl_vector(fs, lower, ";;", "Lower bounds vector");
+    print_gsl_vector(fs, stddev, comment_s, "Standard deviation vector");
     
-    print_gsl_vector(fs, upper, ";;", "Upper bounds vector");
+    print_gsl_vector(fs, mean, comment_s, "Mean vector");
     
+    print_gsl_vector(fs, lower, comment_s, "Lower bounds vector");
+    
+    print_gsl_vector(fs, upper, comment_s, "Upper bounds vector");
+    
+    free(comment_s);
 }
 
 int main(int argc, char **argv)
@@ -1022,6 +1004,7 @@ int main(int argc, char **argv)
     char *lower_str = NULL;
     gsl_vector *upper = NULL;
     char *upper_str = NULL;
+    char *comment = NULL;
     
     char *read = NULL;
     char *temp;
@@ -1031,7 +1014,10 @@ int main(int argc, char **argv)
     
     while( (temp = br_peek(br)) ){
     // Loop will run until the buffered reader has seen the whole file.
-    read = "\0\0\0\0";
+    read = "\0\0\0\0";  // read is used to store read characters shared by more than one keyword,
+                        // after seeing 'c' then read = "c\0\0\0" for keywords "class" and "correlation".
+                        // WARNING: If a keyword is added such that two(or more) keywords share more than
+                        // the first three letters, then the length of read will need to be increased accordingly.
         switch(*temp){
         // The current character is used to match to a keyword where possible
         // else to a group of keywords all starting on the current character.
@@ -1043,12 +1029,12 @@ int main(int argc, char **argv)
             }
             actions = br2int(br, "actions");
             break;
-        case 'c':   // Class or Correlation
+        case 'c':   // Class, Comment or Correlation
         case 'C':
             read[0] = *(br_get(br));
             if( (temp = br_peek(br)) ){
                 if( *temp == 'l' || *temp == 'L'){ // Class
-                    if( br_cmp(br, "c", "lass:") ){
+                    if( br_cmp(br, read, "lass:") ){
                         br_free(br);
                         return 1;
                     }
@@ -1056,12 +1042,37 @@ int main(int argc, char **argv)
                         br_free(br);
                         return 1;
                     }
-                } else if( *temp == 'o' || *temp == 'O'){  // Correlation
-                    if( br_cmp(br, "c", "orrelation:") ){
-                        br_free(br);
-                        return 1;
-                    }
-                    if( get_str(br, &corr_str , "[", "]", "rewards") ){
+                } else if( *temp == 'o' || *temp == 'O'){  // Comment or Correlation
+                    read[1] = *(br_get(br));
+                    if( (temp = br_peek(br)) ){
+                        if( *temp == 'm' || *temp == 'M' ){ // Comment
+                            if( br_cmp(br, read, "mment:") ){
+                                br_free(br);
+                                return 1;
+                            }
+                            if( get_str(br, &comment , NULL, WHITE_SPACE, "comment") ){
+                                br_free(br);
+                                return 1;
+                            }
+                        } else if( *temp == 'r' || *temp == 'R' ) { // Correlation
+                            if( br_cmp(br, read, "rrelation:") ){
+                                br_free(br);
+                                return 1;
+                            }
+                            if( get_str(br, &corr_str , "[", "]", "rewards") ){
+                                br_free(br);
+                                return 1;
+                            }
+                        } else {
+                            fprintf(stderr, 
+                              "Error: While reading line %d. Unknown keyword starting with c%c.",
+                              br->line, *temp);
+                            br_free(br);
+                            return 1;
+                        }
+                    } else {
+                        fprintf(stderr,
+                            "Error: While reading line %d. Encountered end of file after reading \"co\".", br->line);
                         br_free(br);
                         return 1;
                     }
@@ -1207,7 +1218,7 @@ int main(int argc, char **argv)
             if(contains(temp, WHITE_SPACE))
                 br_get(br);
             else {
-                fprintf(stderr, "Error: In line %d. Found '%c'.\n", br->line, *temp);
+                fprintf(stderr, "Error: In line %d. Found '%c' while searching for start of keyword.\n", br->line, *temp);
                 return 1;
             }
         }
@@ -1220,6 +1231,7 @@ int main(int argc, char **argv)
         return 1;
     }
     
+    /* Set values from stored strings, or default where possible and needed. */
     if(corr_str) user_corr = create_gsl_matrix(corr_str, tasks, tasks);
     else {
         user_corr = gsl_matrix_alloc(tasks, tasks);
@@ -1242,6 +1254,7 @@ int main(int argc, char **argv)
     if(upper_str) upper = create_gsl_vector(upper_str, tasks);
     
     if(!file_name){
+        // Create default output filename.
         int len = strlen(argv[1]);
         file_name = (char *) malloc(sizeof(char)*(len+5));
         for(i = 0; i < len; ++i) file_name[i] = argv[1][i];
@@ -1257,7 +1270,9 @@ int main(int argc, char **argv)
         return 1;
     }
     
-    print_data(stdout, class, tasks, states, actions, seed_given, density, file_name, user_corr, mean, stddev, lower, upper);
+    if(comment == NULL) comment = "";
+    
+    print_data(stdout, comment, class, tasks, states, actions, seed_given, density, file_name, user_corr, mean, stddev, lower, upper);
     
     rng = gsl_rng_alloc(gsl_rng_mt19937);
     gsl_rng_set(rng, seed_given);
@@ -1293,7 +1308,7 @@ int main(int argc, char **argv)
     if(lower_str) free(lower_str);
     if(upper) gsl_vector_free(upper);
     if(upper_str) free(upper_str);
-    
+    if(comment) free(comment);
     
     return 0;
 }
