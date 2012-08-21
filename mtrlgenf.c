@@ -89,7 +89,7 @@ int is_not_goal(int c);
 char is_goal(int state);
 void maze_random(unsigned long seed, unsigned int extra);
 int prepare_maze_output(FILE *fs);
-int br_cmp(struct buffered_read *br, const char *prestring, const char *match);
+int br_cmp(struct buffered_read *br, const char *prestring, char *match);
 int contains(char *token, const char *check);
 char * br_skip(struct buffered_read *br);
 int br2int(struct buffered_read *br, const char *action_name);
@@ -336,19 +336,22 @@ void maze_free()
  *  if both "seed" and "state" are strings that might be part of the
  *  input, then if 's' is on the buffer the buffer needs to be advanced,
  *  if 'e' is now on the buffer then match is "eed" not "seed" and "s"
- *  is the prestring. This method was chosen for error reporting. 
+ *  is the prestring. This method was chosen for error reporting.
+ *  Note: br_cmp() is case insensitive.
  */
-int br_cmp(struct buffered_read *br, const char *prestring, const char *match)
+int br_cmp(struct buffered_read *br, const char *prestring, char *match)
 {
     int length = strlen(match);
     int i;
+    
     char *read = (char*) malloc(sizeof(char*) * (length + 1));
     char *val;
-
     for(i = 0; i < length; i++){
         if( (val = br_get(br)) ){
             read[i] = *(val);
-            if(read[i] != match[i]) break;
+            if( read[i] == (match[i] - 32) )
+                match[i] = match[i] - 32;
+            else if(read[i] != match[i]) break;
         } else {
             i--;
             break;
@@ -736,6 +739,8 @@ int get_str(struct buffered_read *br, char **output, const char *start,
             br->line, delimiter, action_name);
         free(li);
         return 3;
+    } else {
+        br_get(br);
     }
     
     *output = malloc(sizeof(char*) * li->size);
@@ -995,7 +1000,7 @@ int main(int argc, char **argv)
         return 0;
     }
 
-    struct buffered_read *br = br_alloc(argv[1]);
+    struct buffered_read *br = NULL;
     FILE *fs = NULL;
     
     unsigned int class = 0;
@@ -1018,22 +1023,31 @@ int main(int argc, char **argv)
     gsl_vector *upper = NULL;
     char *upper_str = NULL;
     
+    char *read = NULL;
     char *temp;
     int i;
     
+    br = br_alloc(argv[1]);
+    
     while( (temp = br_peek(br)) ){
+    // Loop will run until the buffered reader has seen the whole file.
+    read = "\0\0\0\0";
         switch(*temp){
-        case 'a':
+        // The current character is used to match to a keyword where possible
+        // else to a group of keywords all starting on the current character.
+        case 'a':   // Number of actions
+        case 'A':
             if( br_cmp(br, NULL, "actions:") ){
                 br_free(br);
                 return 1;
             }
             actions = br2int(br, "actions");
             break;
-        case 'c':
-            br_get(br);
+        case 'c':   // Class or Correlation
+        case 'C':
+            read[0] = *(br_get(br));
             if( (temp = br_peek(br)) ){
-                if( *temp == 'l' ){
+                if( *temp == 'l' || *temp == 'L'){ // Class
                     if( br_cmp(br, "c", "lass:") ){
                         br_free(br);
                         return 1;
@@ -1042,7 +1056,7 @@ int main(int argc, char **argv)
                         br_free(br);
                         return 1;
                     }
-                } else if( *temp == 'o' ){
+                } else if( *temp == 'o' || *temp == 'O'){  // Correlation
                     if( br_cmp(br, "c", "orrelation:") ){
                         br_free(br);
                         return 1;
@@ -1064,14 +1078,16 @@ int main(int argc, char **argv)
                   br->line);
             }
             break;
-        case 'd':
+        case 'd':   // Density
+        case 'D':
             if( br_cmp(br, NULL, "density:") ){
                 br_free(br);
                 return 1;
             }
             density = br2double(br, "density");
             break;
-        case 'l':
+        case 'l':   // Array of lower Bounds, per task basis
+        case 'L':
             if( br_cmp(br, NULL, "lower bound:") ){
                 br_free(br);
                 return 1;
@@ -1081,7 +1097,8 @@ int main(int argc, char **argv)
                 return 1;
             }
             break;
-        case 'm':
+        case 'm':   // Array of mean values, per task basis
+        case 'M':
             if( br_cmp(br, NULL, "mean:") ){
                 br_free(br);
                 return 1;
@@ -1091,7 +1108,8 @@ int main(int argc, char **argv)
                 return 1;
             }
             break;
-        case 'o':
+        case 'o':   // Output filename
+        case 'O':
             if( br_cmp(br, NULL, "output filename:") ){
                 br_free(br);
                 return 1;
@@ -1101,23 +1119,24 @@ int main(int argc, char **argv)
                 return 1;
             }
             break;
-        case 's':
-            br_get(br);
+        case 's':   // Seed (given), Standard deviation or number of states
+        case 'S':
+            read[0] = *(br_get(br));
             if( (temp = br_peek(br)) ){
-                if(*temp == 'e'){
-                    if( br_cmp(br, "s", "eed:") ){
+                if(*temp == 'e' || *temp == 'E'){   // Seed
+                    if( br_cmp(br, read, "eed:") ){
                         br_free(br);
                         return 1;
                     }
                     seed_given = (long) br2int(br, "seed");
-                } else if (*temp == 't'){
-                    br_get(br);
+                } else if (*temp == 't' || *temp == 'T'){
+                    read[1] = *(br_get(br));
                     if( (temp = br_peek(br)) ){
-                        if(*temp == 'a'){
-                            br_get(br);
+                        if(*temp == 'a' || *temp == 'A'){
+                            read[2] = *(br_get(br));
                             if( (temp = br_peek(br)) ){
-                                if(*temp == 'n'){
-                                    if( br_cmp(br, "sta", "ndard deviation:") ){
+                                if(*temp == 'n' || *temp == 'N'){   // Standard deviation
+                                    if( br_cmp(br, read, "ndard deviation:") ){
                                         br_free(br);
                                         return 1;
                                     }
@@ -1125,8 +1144,8 @@ int main(int argc, char **argv)
                                         br_free(br);
                                         return 1;
                                     }
-                                } else if(*temp == 't'){
-                                    if( br_cmp(br, "sta", "tes:") ){
+                                } else if(*temp == 't' || *temp == 'T'){    // States
+                                    if( br_cmp(br, read, "tes:") ){
                                         br_free(br);
                                         return 1;
                                     }
@@ -1165,14 +1184,16 @@ int main(int argc, char **argv)
                   br->line);
             }
             break;
-        case 't':
+        case 't':   // Number of tasks
+        case 'T':
             if( br_cmp(br, NULL, "tasks:") ){
                 br_free(br);
                 return 1;
             }
             tasks = br2int(br, "tasks");
             break;
-        case 'u':
+        case 'u':   // Array of upper bounds, per task basis
+        case 'U':
             if( br_cmp(br, NULL, "upper bound:") ){
                 br_free(br);
                 return 1;
@@ -1182,8 +1203,13 @@ int main(int argc, char **argv)
                 return 1;
             }
             break;
-        default:
-            br_get(br);
+        default:    // skip white space
+            if(contains(temp, WHITE_SPACE))
+                br_get(br);
+            else {
+                fprintf(stderr, "Error: In line %d. Found '%c'.\n", br->line, *temp);
+                return 1;
+            }
         }
     }
     
