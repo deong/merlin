@@ -6,7 +6,7 @@ actions:
      
       states: 7
       tasks: 3
-      class: maze
+      class: maz/*  */e
       
       seed: 217
         

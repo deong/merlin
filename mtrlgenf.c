@@ -57,6 +57,7 @@ struct buffered_read{
     char *buffer;
     char *current;
     char *end;
+    int offset;
     int line;
 };
 
@@ -81,7 +82,7 @@ int li_add(struct list *li, char token);
 struct buffered_read * br_alloc(const char *filename);
 void br_free(struct buffered_read *br);
 char * br_get(struct buffered_read *br);
-void br_jam(struct buffered_read *br);
+void br_jam(struct buffered_read *br, const char *until);
 char * br_peek(struct buffered_read *br);
 void maze_alloc(unsigned int h, unsigned int w, unsigned int tasks);
 void maze_free();
@@ -89,14 +90,14 @@ int is_not_goal(int c);
 char is_goal(int state);
 void maze_random(unsigned long seed, unsigned int extra);
 int prepare_maze_output(FILE *fs);
-int br_cmp(struct buffered_read *br, const char *prestring, char *match);
+int br_cmp(struct buffered_read *br, const char *prestring, const char *match);
 int contains(char *token, const char *check);
 char * br_skip(struct buffered_read *br);
 int br2int(struct buffered_read *br, const char *action_name);
 double br2double(struct buffered_read *br, const char *action_name);
 int get_class(struct buffered_read *br);
 int get_str(struct buffered_read *br, char **output, const char *start,
-            const char *delimiter, const char *action_name);
+            char *delimiter, const char *action_name);
 gsl_vector * create_gsl_vector(char *input, int count);
 gsl_matrix * create_gsl_matrix(char *input, int rows, int columns);
 void print_gsl_vector(FILE *fs, gsl_vector *input, const char *comment,
@@ -110,7 +111,7 @@ void print_data(FILE *fs, const char *comment, int class, int tasks, int states,
 
 gsl_rng *rng = NULL;
 
-/* Should print a help message as instructions for the user. See TODO.
+/* Should print a help message as instructions for the user.
  */
 void print_usage()
 {
@@ -199,6 +200,7 @@ struct buffered_read * br_alloc(const char *filename)
                 br->end = &br->buffer[B_SIZE];
                 br->current = br->end;
                 *br->end = '\0';
+                br->offset = 0;
                 br->line = 1; 
             }
             else {
@@ -235,42 +237,32 @@ void br_free(struct buffered_read *br)
 
 /* Returns a pointer to the current character and then increments the  
  *  current character to the next. Automatically flushes and refills
- *  the buffer if needed. Returns a null pointer if all of the file and
- *  buffer has been read. 
+ *  the buffer if needed. Returns a null pointer if the file and
+ *  buffer has been read in full. 
  */
 char * br_get(struct buffered_read *br)
 {
-    if( feof(br->fs) && (br->current == br->end) ) return NULL;
-    
-    char *val = NULL;
-    
-    if( br->current == br->end ){
-        // Refill buffer.
-        int offset = fread(br->buffer, 1, B_SIZE, br->fs);
-        br->end = &(br->buffer[offset]);
-        br->current = br->buffer;
-        if(offset) val = br->current++;
-    } else {
-        // increment buffer pointer.
-        val = br->current++;
-    }
+    char *val = br_peek(br);
+    if(br->offset) br->current++;
     
     // Side effect:
     // Increments the line counter when pointing to vertical whitespace.
-    if( contains(val, "\n\v\f")) br->line++;
+    if( val && contains(val, "\n\v\f")) br->line++;
     
     return val;
 }
 
-/* When a function that is currently incapable of returning an error
- *  flag needs to terminate the program, this function will skip through
- *  the file and buffer.
- *  TODO: Notice, this function is impractical.
- *   It should flag EOF as true and update br->current to br->end. 
+/* This function cycles through the given buffered reader br until
+ *  the given end string is reached.
  */
-void br_jam(struct buffered_read *br)
+void br_jam(struct buffered_read *br, const char *until)
 {
-    while(br_get(br)) ;
+    char *temp = NULL;
+    while((temp = br_peek(br)) ){
+        if(until && (until[0] == *temp) && !br_cmp(br, NULL, until) )
+            break;
+        br_get(br);
+    }
 }
 
 /* If EOF and the buffer has been read then this returns a NULL pointer.
@@ -282,9 +274,27 @@ char * br_peek(struct buffered_read *br)
     if( feof(br->fs) && (br->current == br->end) ) return NULL;
     
     if( br->current == br->end ){
-        int offset = fread(br->buffer, 1, B_SIZE, br->fs);
-        br->end = &(br->buffer[offset]);
+        br->offset = fread(br->buffer, 1, B_SIZE, br->fs);
+        br->end = &(br->buffer[br->offset]);
         br->current = br->buffer;
+    }
+    
+    if(br->current != br->end && *(br->current) == '/'){
+        if(br->current != (br->end - 1) && *(br->current + 1) == '*'){
+            br->current = br->current + 2;
+            br_jam(br, "*/");
+        }
+        else if(br->current == (br->end - 1)){
+            fpos_t pos;
+            fgetpos(br->fs, &pos);
+            char c = fgetc(br->fs);
+            fsetpos(br->fs, &pos);
+            if( c == '*'){
+                br->current++;
+                br_get(br);
+                br_jam(br, "*/");
+            }
+        }
     }
     
     return (br->current);
@@ -339,18 +349,22 @@ void maze_free()
  *  is the prestring. This method was chosen for error reporting.
  *  Note: br_cmp() is case insensitive.
  */
-int br_cmp(struct buffered_read *br, const char *prestring, char *match)
+int br_cmp(struct buffered_read *br, const char *prestring, const char *match)
 {
     int length = strlen(match);
     int i;
     
-    char *read = (char*) malloc(sizeof(char*) * (length + 1));
+    char *match_p = (char *)malloc(sizeof(char)*(length + 1));
+    char *read = (char*)malloc(sizeof(char) * (length + 1));
     char *val;
+    for(i = 0; i < length; i++)
+        match_p[i] = match[i];
+        
     for(i = 0; i < length; i++){
         if( (val = br_get(br)) ){
             read[i] = *(val);
-            if( read[i] == (match[i] - 32) )
-                match[i] = match[i] - 32;
+            if( read[i] > 64 && read[i] < 91 && read[i] == (match[i] - 32) )
+                match_p[i] = read[i];
             else if(read[i] != match[i]) break;
         } else {
             i--;
@@ -362,14 +376,15 @@ int br_cmp(struct buffered_read *br, const char *prestring, char *match)
         if(prestring)
             fprintf(stderr, 
                   "Error: While reading line %d. Expected \"%s%s\", found %s%s.\n",
-                  br->line, prestring, match, prestring, read);
+                  br->line, prestring, match_p, prestring, read);
         else fprintf(stderr,
                   "Error: While reading line %d. Expected \"%s\", found %s.\n",
-                  br->line, match, read);
+                  br->line, match_p, read);
         free(read);
         return 1;
     }
     
+    free(match_p);
     free(read);
     return 0;
 }
@@ -426,7 +441,7 @@ int br2int(struct buffered_read *br, const char *action_name)
             val = *temp - 48;
         }
         else if( *temp != '+' ){
-            br_jam(br);
+            br_jam(br, NULL);
             fprintf(stderr, 
              "Error: In line %d. Found %c, when trying to read in an integer value for %s.\n",
              br->line, *temp, action_name);
@@ -460,7 +475,7 @@ double br2double(struct buffered_read *br, const char *action_name)
         else if( contains(temp, DIGIT) )
             val = (double)( *temp - 48 );
         else if( *temp != '+' ){
-            br_jam(br);
+            br_jam(br, NULL);
             fprintf(stderr, 
              "Error: In line %d. Found %c, when trying to read in an integer value for %s.\n", 
              br->line, *temp, action_name);
@@ -514,11 +529,20 @@ char is_goal(int state)
     return 32;
 }
 
-/* TODO: Write a good comment */
+/* Expects the global pointer maze of type struct maze pointer to be preallocated
+ *  using maze_alloc(unsigned int, unsigned  int, unsigned  int).
+ *  maze_random breaks pathways such that from any two distinct states A and B there
+ *  exists at least one valid and direct list of stateXaction pairs that change the
+ *  current state from A to B. Furthermore due to an inertia parameter, pathways
+ *  tend to be straight. The parameter seed is currently unused. The extra parameter
+ *  breaks down additional walls allowing for cycles in the maze.
+ */
 void maze_random(unsigned long seed, unsigned int extra)
 {
     if(maze){
         int rand = (int)floor(gsl_rng_uniform(rng)*4);
+            // rand is the random direction.
+            // 0: Up, 1: Right, 2: Down, 3: Left
         int h = maze->height;
         int w = maze->width;
         int m = h*w;
@@ -536,7 +560,10 @@ void maze_random(unsigned long seed, unsigned int extra)
         path[current] = 0;
         
         while(is_not_goal(current)){
-            if(gsl_rng_uniform(rng) < 0.34)
+            // Create a path from start to a goal,
+            // this path is updated directly to the path variable
+            if(gsl_rng_uniform(rng) < 0.34) 
+                // inertia, only selects a new direction a third of the time.
                 rand = (int)floor(gsl_rng_uniform(rng)*4);
             switch(rand){
             case 0:
@@ -573,6 +600,9 @@ void maze_random(unsigned long seed, unsigned int extra)
         
         for(i = 0; i < m; ++i){
             if(path[i]){
+            // For each state i not in the path variable(that is path[i] = 1) create
+            // a path new from i to state j such that for all states s in new, path[s] = 0
+            // if and only if s = j.
                 sum = 0.0;
                 for(j = 0; j < 4; ++j){
                     sum += gsl_matrix_get(maze->pathways, i, j);
@@ -617,6 +647,7 @@ void maze_random(unsigned long seed, unsigned int extra)
                         new[current] = 0;
                     }
                     for(j = 0; j < m; ++j){
+                    // Update the path variable so it contains the new path in new and reset new.
                         path[j] *= new[j];
                         new[j] = 1;
                     }
@@ -688,9 +719,14 @@ int get_class(struct buffered_read *br)
     return class;
 }
 
-/* TODO: Write a comment */
+/* Returns the string starting from the current position of the buffered reader
+ *  until one of the delimiter characters is found. If no delimter characters are
+ *  specified then "\n" is used instead. If start is not NULL then the search is
+ *  begins after start is read and will only find numbers.
+ *  Returns 0 when successful.
+ */
 int get_str(struct buffered_read *br, char **output, const char *start,
-            const char *delimiter, const char *action_name)
+            char *delimiter, const char *action_name)
 {
     if( !(br_skip(br)) ){
         fprintf(stderr, 
@@ -716,7 +752,11 @@ int get_str(struct buffered_read *br, char **output, const char *start,
         return 2;
     }
     
+    if(delimiter == NULL || strlen(delimiter) == 0)
+        delimiter = "\n";
+        
     if(start)
+        // only numeric values, returns a list of space seperated numbers
         while( (temp = br_peek(br)) && !(contains(temp, delimiter)) ){
             br_get(br);
             if( contains(temp, DIGIT) || contains(temp, "-+eE") ){
@@ -734,6 +774,7 @@ int get_str(struct buffered_read *br, char **output, const char *start,
             }
         }
     else
+        // anything up to the next delimiter token
         while( (temp = br_peek(br)) && !(contains(temp, delimiter)) ){
             br_get(br);
             li_add(li, *temp);
@@ -839,7 +880,6 @@ void print_maze(FILE *fs)
 int prepare_maze_output(FILE *fs)
 {
     if(maze){
-        //TODO:
         //  task, states, actions
         //  state transition matrix: (state x action) -1 for wall, number of new state otherwise [spelling]
         //  reward matrix: ((state*action) x task) 0 except into goal state for applicable task
