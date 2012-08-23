@@ -63,17 +63,14 @@ struct buffered_read{
 
 /* End of struct definitions */
 
-/* Forward definitions, NOTE: some are missing and others are missing */
+/* Forward definitions */
 void print_usage();
-/* Unused declarations.
- * TODO: add functions to match declarations or remove declarations. */
 int  generate_instance(gsl_matrix** samples, int n, int m, int k, gsl_matrix* r, 
 		       gsl_vector *mean, gsl_vector *stddev, double density, unsigned long seed,
                gsl_vector *lower, gsl_vector *upper);
 unsigned long get_seed();
 gsl_matrix* pearson_correlation(gsl_matrix* r);
 void print_to_matlab(int n, int m, int k, gsl_matrix *rewards, char* name);
-/* End of unused declarations */
 
 struct list * li_alloc();
 void li_free(struct list *li);
@@ -710,7 +707,12 @@ int get_class(struct buffered_read *br)
     
     switch(*temp){
     case 'm':
+    case 'M':
         class = br_cmp(br, NULL, "maze") ? -1 : 1; break;
+    case 'r':
+    case 'R':
+        class = br_cmp(br, NULL, "random problem") ? -1 : 2; break;
+    
     default:
         fprintf(stderr, "Error: No class starts with %c\n", *temp);
         class = -1;
@@ -874,8 +876,7 @@ void print_maze(FILE *fs)
 
 /* Creates and prints to file stream fs the specification of the maze.
  *  Specifications are number of tasks, states and actions along with
- *  a transistion matrix and rewards matrix. 
- *  TODO: The rewards need reworking. 
+ *  a transistion matrix and rewards matrix.
  */
 int prepare_maze_output(FILE *fs)
 {
@@ -1029,7 +1030,7 @@ int main(int argc, char **argv)
     unsigned int states = 0;
     unsigned int actions = 0;
     unsigned int tasks = 0;
-    unsigned long seed_given = 0;
+    unsigned long seed_given = get_seed();
     double density = 0.1;
     char *file_name = NULL;
     gsl_matrix *user_corr = NULL;
@@ -1318,12 +1319,20 @@ int main(int argc, char **argv)
     gsl_rng_set(rng, seed_given);
     
     switch(class){
-    case 1:
+    case 1: //maze
         maze_alloc(states, actions, tasks);
         maze_random(seed_given, states);
         print_maze(stdout);
         prepare_maze_output(fs);
         maze_free();
+        break;
+    case 2:
+        if( generate_instance(&rewards, states, actions, tasks, user_corr,
+            mean, stddev, density, seed_given, lower, upper) ){
+              fprintf(stderr, "Error: Generating a random problem failed.\n");
+              return 1;
+        }
+        print_to_matlab(states, actions, tasks, rewards, file_name);
         break;
     }
     
@@ -1353,264 +1362,508 @@ int main(int argc, char **argv)
     return 0;
 }
 
-/*
+/* Functions below are borrowed and retailored from mtrlgen.c */
 
-char * check(FILE *fs, char **buffer, char *match, int *start, int *b_size)
+int generate_instance(gsl_matrix** samples, int n, int m, int k, gsl_matrix* r, 
+		      gsl_vector *mean, gsl_vector *stddev, double density, unsigned long seed,
+              gsl_vector *lower, gsl_vector *upper) 
 {
-    printf("In check\n");
-    char *error = NULL;
-    char *temp = NULL;
-    int pos = *start;
-    int i = 0;
+    /* the total number of samples for each task is nm (states * actions).
+     * we'll reshape this into a matrix form when we're done. */
+    const int N = m*n;
+    gsl_matrix* v;
+    gsl_matrix* T;
+    gsl_matrix* randn;
+    gsl_matrix *unmapped_samples;
+    int i;
     int j;
-    int f;
-    printf("%c %c %c %c %c %c %c %c %c \n",match[0],match[1],match[2],match[3],match[4],match[5],match[6],match[7],match[8]);
-    while(match[i] != '\0' && error == NULL){
-        printf("In while, expecting %c, have %c\n", match[i], (*buffer)[pos]);
-        printf("\tBefore matching - i: %d, pos: %d, b_size: %d\n", i, pos, *b_size);
-        if(match[i++] != (*buffer)[pos++]){
-            printf("\t\t\t----MISMATCH\n");
-            if(temp){
-                //f += pos;
-                printf("\t -- %d, %d --\n",f,pos);
-                error = malloc(sizeof(char*) * f + pos + 1);
-                for(i = 0; i < f; ++i){
-                    error[i] = temp[i];
-                    printf("%d\n",i);
+    double p;
+    const int nonzero_N = (int)ceil(N*density);
+    //const int zero_N = N - nonzero_N;
+    
+    /* Memory allocation */
+    unsigned int mapping_array[nonzero_N];
+    //if(zero_N > 0)unsigned int zeros[zero_N];
+    unsigned int zeros[N];
+    T = gsl_matrix_alloc(r->size1, r->size2);
+    v = gsl_matrix_alloc(nonzero_N, k);
+    randn = gsl_matrix_calloc(nonzero_N, k);
+    unmapped_samples = gsl_matrix_calloc(nonzero_N, k);
+    *samples = gsl_matrix_calloc(N, k);
+    
+    /* take cholesky decomposition and make sure covariance matrix is positive-definite */
+    gsl_matrix_memcpy(T, r);
+    if(gsl_linalg_cholesky_decomp(T) == GSL_EDOM) {
+        return 1;
+    }
+    
+    /* make sure that mu is a column vector and copy it N times */
+    //v = gsl_matrix_alloc(N, k);
+    for(i=0; i<nonzero_N; ++i) {
+        gsl_matrix_set_row(v, i, mean);
+    }
+    
+    /* Original random generated matrix, will cause errors if used */
+    /* create an Nxk matrix of normally distributed random numbers */
+    /*rng = gsl_rng_alloc(gsl_rng_mt19937);
+    gsl_rng_set(rng, seed);
+    randn = gsl_matrix_calloc(N, k);
+    for(i=0; i<N; ++i) {
+        for(j=0; j<k; ++j) {
+            if (gsl_rng_uniform(rng) <= density)
+                gsl_matrix_set(randn, i, j, gsl_ran_gaussian(rng, gsl_vector_get(stddev, j)));
+            else
+                gsl_matrix_set(v, i, j, 0.0);
+        }
+    }*/
+    
+    /* Current nonzero random matrix, generates one value in each row.
+     * This has not been correlated.
+     * Either this code block or the one below should be commented out.
+     */
+    j = 0;
+    for(i=0; i<nonzero_N; ++i) {
+        if(j == k) j = 0;
+        gsl_matrix_set(randn, i, j, gsl_ran_gaussian(rng, gsl_vector_get(stddev, j)));
+        ++j;
+    }
+    
+    /* Current nonzero random matrix, generates at least one value in each row more dependent on
+     * a random distribution and density. This data has not been correlated.
+     * Either this code block or the one above should be commented out.
+     */
+    /*rng = gsl_rng_alloc(gsl_rng_mt19937);
+    gsl_rng_set(rng, seed);
+    randn = gsl_matrix_calloc(nonzero_N, k);
+    for(i=0; i<nonzero_N; ++i) {
+        p = 0.0;
+        while(p == 0.0)
+            for(j=0; j<k; ++j) {
+                if(gsl_rng_uniform(rng) <= density){
+                    gsl_matrix_set(randn, i, j, gsl_ran_gaussian(rng, gsl_vector_get(stddev, j)));
+                    ++p;
                 }
-                printf("%s, i: %d\n",error,i);
-                j = 0;
-            } else {
-                f = pos - *start;
-                error = malloc(sizeof(char*) * f);
-                i = 0;
-                j = *start;
             }
-            while(j < pos){
-                printf("\t-- i: %d, j: %d, pos: %d, char: %c\n", i, j, pos, (*buffer)[j]);
-                error[i++] = (*buffer)[j++];
-            }
-            error[i] = '\0';
-        } 
-        printf("\tAfter matching - i: %d, pos: %d, b_size: %d\n", i, pos, *b_size);
-        if(pos == *b_size){
-            if(feof(fs)){
-                break;
-            } else{
-                f = pos - *start;
-                temp = malloc(sizeof(char*) * f);
-                for(j = 0; j < f; j++){
-                    temp[j] = (*buffer)[*start + j];
+        
+    }*/
+    
+    /* Print out the pre-reward matrix, should be removed */
+    /*printf("Non-zero random matrix without reshaping. (Should be removed)\n");
+    for(i=0;i<nonzero_N;++i){
+        for(j=0;j<k;++j){
+            printf("%8.4f", gsl_matrix_get(randn, i, j));
+        }
+        printf("\n");
+    }*/
+    
+    /* Sparsisty test code, needs cleanup, also not in use */
+    /*double div;
+    int t;
+    double temp;
+    gsl_matrix *maskc = gsl_matrix_calloc(N,k);
+    
+    for (i = 0; i < N; ++i) {
+        for (j = 0; j < k; ++j) {
+            if (gsl_rng_uniform(rng) <= density) gsl_matrix_set(unmapped_samples, i, j, 1.0);
+        }
+    }
+    
+    for (i = 0; i < N; ++i) {
+        
+        for (j = 0; j < k; ++j) {
+            div = 1.0;
+            p = density;
+            for (t = 0; t < k; ++t) {
+                if ( gsl_matrix_get(unmapped_samples, i, t) == 1.0) {
+                    div += 1.0;
+                    temp = gsl_matrix_get(r, j, t);
+                    p = temp < 0.0 ? p - temp : p + temp;
                 }
-                pos = 0;
-                *b_size = fread(*buffer, 1, B_SIZE, fs);
-                printf("\ttemp: %s, f: %d\n",temp,f);
+            }
+            if (gsl_rng_uniform(rng) <= p/div) gsl_matrix_set(unmapped_samples, i, j, 1.0);
+            gsl_matrix_set(maskc,i,j,p/div);
+        }
+    }
+    
+    gsl_matrix *c = pearson_correlation(unmapped_samples);
+    
+    printf("Printout of calculation matrix for sparsity:\n");
+    for(i=0;i<N;++i){
+        for(j=0;j<k;++j){
+            printf("%8.4f:%2.1f", gsl_matrix_get(maskc, i, j), gsl_matrix_get(unmapped_samples,i,j));
+        }
+        printf("\n");
+    }*/
+    /* End of test code for sparsisty */
+    
+    /* multiply it by the cholesky decomposition of R */
+    gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, 1.0, randn, T, 0.0, unmapped_samples);
+
+    /* add in the means */
+    gsl_matrix_add(unmapped_samples, v);
+    
+    /* Check for breach of lower bound */
+    if (lower != NULL) {
+        for(j=0;j<k;++j){
+            p = gsl_vector_get(lower,j);
+            for(i=0;i<nonzero_N;++i){
+                if (p > gsl_matrix_get(unmapped_samples,i,j))
+                    gsl_matrix_set(unmapped_samples,i,j,p);
             }
         }
-        printf("\t\tEnd of while i: %d",i);
-        if(error) printf(", %s",error);
+    }
+    
+    /* Check for breach of upper bound */
+    if (upper != NULL) {
+        for(j=0;j<k;++j){
+            p = gsl_vector_get(upper,j);
+            for(i=0;i<nonzero_N;++i){
+                if (p < gsl_matrix_get(unmapped_samples,i,j))
+                    gsl_matrix_set(unmapped_samples,i,j,p);
+            }
+        }
+    }
+    
+    /* Generate zeros matrix with N elements.
+     * If
+     */
+    for(i = 0; i < N; ++i){
+        zeros[i] = 0;
+    }
+    int g = (int)floor(gsl_rng_uniform(rng)*N);
+    
+    /* Generate a mapping order to map unmapped_samples to the return matrix *samples
+     * and simutaneously perform said mapping.
+     */
+    for(i = 0; i < nonzero_N; ++i){
+        /*mapping_array[i] = (int)floor(gsl_rng_uniform(rng)*N);
+        
+        // This while loop maintains the necessary one-to-one property of the mapping function
+        j = 0;
+        while(j < i){
+            if(mapping_array[i] == mapping_array[j]){
+                mapping_array[i] = (int)floor(gsl_rng_uniform(rng)*N);
+                j = 0;
+            } else ++j;
+        }*/
+        
+        while(zeros[g]) g = (int)floor(gsl_rng_uniform(rng)*N);
+        
+        zeros[g] = 1;
+        mapping_array[i] = g;
+        
+        for(j = 0; j < k; ++j)
+            gsl_matrix_set(*samples,mapping_array[i],j,gsl_matrix_get(unmapped_samples,i,j));
+            
+    }
+    
+    /*test-code*/
+    
+    /* Calculate and print the pearson correlation of the generated rewards, should be removed */
+    gsl_matrix *c = pearson_correlation(unmapped_samples);
+    print_gsl_matrix(stdout, c, ";;  ", "Calculated correlation matrix");
+    
+    /* Calculate and print the sum absolute error per permutation, should be removed */
+    int u, w;
+    double ans = 0;
+    double t,x,y;
+    for (u = 0; u < k; ++u) {
+       for (w = u+1; w < k; ++w){
+           x = gsl_matrix_get(r,u,w);
+           y = gsl_matrix_get(c,u,w);
+           t = x - y;
+           ans = t<0.0 ? ans-t : ans+t;
+       }
+    }
+    u = 1;//(k*k-k)/2;
+    printf("\nAbsolute error-sum: %8.4f\n",ans/u);
+    
+    /*test-code end*/
+    
+    /* Generate a mapping order to map unmapped_samples to the return matrix *samples
+     * and simutaneously perform said mapping.
+     * Repeat for test-code
+     */
+    /*for(i = 0; i < nonzero_N; ++i){
+        mapping_array[i] = (int)floor(gsl_rng_uniform(rng)*N);
+        
+        // This while loop maintains the necessary one-to-one property of the mapping function
+        j = 0;
+        while(j < i){
+            if(mapping_array[i] == mapping_array[j]){
+                mapping_array[i] = (int)floor(gsl_rng_uniform(rng)*N);
+                j = 0;
+            } else ++j;
+        }
+        
+        for(j = 0; j < k; ++j)
+            gsl_matrix_set(*samples,mapping_array[i],j,gsl_matrix_get(unmapped_samples,i,j));
+            
+    }*/
+    
+    /*printf("\nOrder: ");
+    for(i=0;i<nonzero_N;++i) printf("%d, ",mapping_array[i]);
+    printf("\n");*/
+    
+    
+    /* Print out the pre-reward matrix */
+    /*printf("Non-zero reward matrices without reshaping. (Should be removed)\n");
+    for(i=0;i<nonzero_N;++i){
+        for(j=0;j<k;++j){
+            printf("%8.4f", gsl_matrix_get(unmapped_samples, i, j));
+        }
+        printf("\n");
+    }*/
+    
+    
+    /* Print out the reward matrix */
+    /*printf("Reward matrices without reshaping. (Should be removed)\n");
+    for(i=0;i<N;++i){
+        for(j=0;j<k;++j){
+            printf("%8.4f", gsl_matrix_get(*samples, i, j));
+        }
+        printf("\n");
+    }*/
+    
+    /* Test code that checks end result sparsity, needs clean up */
+    /*int counter;
+    
+    printf("\n\n");
+    for(i=0;i<k;++i){
+        counter = 0;
+        for(j=0;j<N;++j){
+            if(gsl_matrix_get(*samples, j, i)==0.0) ++counter;
+        }
+        printf("%d, %f\n",counter,(double)counter/N);
+    }*/
+    /* End of test code */
+    
+    /*printf("\nSilly code\n\n");
+    
+    for(i=0;i<N;++i){
+        for(j=0;j<k;++j){
+            gsl_matrix_set(*samples, i, j, i);
+            printf("%8.4f, ", gsl_matrix_get(*samples, i, j));
+        }
         printf("\n");
     }
-    *start = pos;
-    return error;
-}
-
-int skip_ws(FILE *fs, char **buffer, char *str, int *start, int *b_size){
-    printf("skip_ws: Starting while. i: %d, buffer[%d]: %c\n",*start,*start,(*buffer)[*start]);
-    while( (*buffer)[*start] == ' '
-        || (*buffer)[*start] == '\t'
-        || (*buffer)[*start] == '\n'
-        || (*buffer)[*start] == '\r'){
-        if(++(*start) == *b_size){
-            printf("\t-- i: %d\n",*start);
-            if(feof(fs)){
-                fprintf(stderr, "missing input: %s\n", str);
-                return 1;
-            } else {
-                *b_size = fread(*buffer, 1, B_SIZE, fs);
+    
+    printf("\n");*/
+    
+    gsl_matrix *fuu = gsl_matrix_alloc(N,k);
+    int max_iter = 12;
+    int curr_iter = 0;
+    int index, kt;
+    double sum, div, temp;
+    p = 1.0;
+    
+    while(p > 0.01 && curr_iter < max_iter){
+        gsl_matrix_memcpy(fuu, *samples);
+        p = 0.0;
+        
+        for(i = 0; i < n; ++i){
+            for(j = 0; j < m; ++j){
+                index = i*m + j;
+                for(kt = 0; kt < k; ++kt){
+                    div = 1.0;
+                    sum = gsl_matrix_get(fuu, index, kt);
+                    
+                    if(i != 0 && j != 0){
+                        sum += gsl_matrix_get(fuu, (index - m - 1), kt);
+                        div += 1.0;
+                    }
+                    
+                    if(i != 0){
+                        sum += gsl_matrix_get(fuu, (index - m), kt);
+                        div += 1.0;
+                    }
+                    
+                    if(i != 0 && j != m-1){
+                        sum += gsl_matrix_get(fuu, (index - m + 1), kt);
+                        div += 1.0;
+                    }
+                    
+                    if(j != 0){
+                        sum += gsl_matrix_get(fuu, (index - 1), kt);
+                        div += 1.0;
+                    }
+                    
+                    if(j != m-1){
+                        sum += gsl_matrix_get(fuu, (index + 1), kt);
+                        div += 1.0;
+                    }
+                    
+                    if(i != n-1 && j != 0){
+                        sum += gsl_matrix_get(fuu, (index + m - 1), kt);
+                        div += 1.0;
+                    }
+                    
+                    if(i != n-1){
+                        sum += gsl_matrix_get(fuu, (index + m), kt);
+                        div += 1.0;
+                    }
+                    
+                    if(i != n-1 && j != m-1){
+                        sum += gsl_matrix_get(fuu, (index + m + 1), kt);
+                        div += 1.0;
+                    }
+                    
+                    gsl_matrix_set(*samples, index, kt, sum/div);
+                    temp = fabs(gsl_matrix_get(fuu, index, kt) - gsl_matrix_get(*samples, index, kt));
+                    if(temp > p) p = temp;
+                }
             }
         }
+        ++curr_iter;
     }
-    printf("skip_ws: Exiting while. i: %d, buffer[%d]: %c\n",*start,*start,(*buffer)[*start]);
+    
+    for(i = 0; i < N; ++i){
+        if(zeros[i] == 0)
+            for(j = 0; j < k; ++j){
+                if(fabs(gsl_matrix_get(*samples, i, j)) < 0.01)
+                   gsl_matrix_set(*samples, i, j, 0.0);
+            }
+    }
+    
+    printf("\n%d iterations",curr_iter);
+    
+    gsl_rng_free(rng);
+    gsl_matrix_free(randn);
+    gsl_matrix_free(v);
+    gsl_matrix_free(T);
+    gsl_matrix_free(unmapped_samples);
     return 0;
 }
 
-int read_i(FILE *fs, char **buffer, int *start, int *b_size){
-    int pos = *start;
-    int i, j;
-    char *temp = NULL;
-    char *fullstr = NULL;
-    
-    while( (*buffer)[pos] == '1' || (*buffer)[pos] == '2' || (*buffer)[pos] == '3'
-        || (*buffer)[pos] == '4' || (*buffer)[pos] == '5' || (*buffer)[pos] == '6'
-        || (*buffer)[pos] == '7' || (*buffer)[pos] == '8' || (*buffer)[pos] == '9'
-        || (*buffer)[pos] == '0' || (*buffer)[pos] == '-')
-        if(++pos == *b_size){
-            i = pos - *start;
-            temp = malloc(sizeof(char*) * i);
-            for(j = 0; j < i; ++j){
-                temp[j] = (*buffer)[*start + j];
-            }
-            if(feof(fs)){
-                *start = pos;
-                temp[j] = '\0';
-                i = atoi(temp);
-                free(temp);
-                return i;
-            } else {
-                *start = 0;
-                pos = 0;
-                *b_size = fread(*buffer, 1, B_SIZE, fs);
-            }
-        }
-    if(temp){
-        fullstr = malloc(sizeof(char*) * (i + pos));
-        for(j = 0; j < i; ++j){
-            fullstr[j] = temp[j];
-        }
-        free(temp);
-        while(j < (i + pos)){
-            fullstr[j++] = (*buffer)[(*start)++];
-        }
-        fullstr[j] = '\0';
+/* get a seed value for the random number generator
+ *
+ * tries to read bytes from /dev/random first; if that fails,
+ * falls back to using the system clock.
+ */
+unsigned long get_seed()
+{
+    unsigned long seed;
+    int fd = open("/dev/random", O_RDONLY|O_NONBLOCK);
+    if((fd!=-1) && (read(fd, &seed, sizeof(unsigned long)) == sizeof(unsigned long))) {
+        return (unsigned long)seed;
     } else {
-        fullstr = malloc(sizeof(char*) * pos);
-        while(*start < pos){
-            fullstr[*start] = (*buffer)[*start];
-            (*start)++;
-        }
-        fullstr[*start] = '\0';
+        fprintf(stderr, "failed to read random bytes from /dev/random..."
+                "falling back to system clock\n");
+        return (unsigned long)(time(NULL));
     }
-    i = atoi(fullstr);
-    free(fullstr);
-    return i;
 }
 
-double read_d(FILE *fs, char **buffer, int *start, int *b_size){
-    return 0.0;
+/* Find matrix subject's pearson correlation matrix, 
+ * uses subject's columns as seperate entities to correlate
+ * 
+ * Usage:  gsl_matrix *pearson = pearson_correlation(subject);
+ * Input:  gsl matrix pointer subject with dimensions Nxk
+ * Output: pointer to kxk symmetric gsl matrix pearson where element
+ *         i, j is the pearson correlation of column i and j of subject
+ *         if subject is NULL then so is pearson
+ */
+gsl_matrix* pearson_correlation(gsl_matrix* subject)
+{
+    if ( subject == NULL) return subject;
+    
+    int i;
+    int j;
+    double p;
+    gsl_vector a;
+    gsl_vector b;
+    int k = subject->size2;
+    int N = subject->size1;
+    
+    gsl_matrix* pearson = gsl_matrix_alloc(k, k);
+    gsl_matrix_set_identity(pearson);
+    
+    for (i = 0; i < k-1; ++i) {
+        a = gsl_matrix_column(subject, i).vector;
+        
+        for (j = i+1; j < k; ++j) {
+            b = gsl_matrix_column(subject,j).vector;
+            p = gsl_stats_correlation(a.data, a.stride, b.data, b.stride, N);
+            gsl_matrix_set(pearson,i,j,p);
+            gsl_matrix_set(pearson,j,i,p);
+        }
+    }
+    
+    return pearson;
 }
 
-*/
-
-/*// int main(int argc, char **argv)
-// {
-    // if(argc != 2){
-        // fprintf(stderr, "Currently only accepting one argument which should be the name of a config file in the same directory or \"HELP\"\n");
-        // return 1;
-    // }
+/* Generates a MATLAB script file name.m containing k and all reward matrices.
+ * Running the script will create variable $name$_count = k,
+ * and k matrices named name_ti = reward matrix for task i
+ * where i in [0..k-1].
+ * Currently also generates MATLAB code at the end of the script that displays
+ * the rewards as heat maps.
+ *
+ * Usage:  print_to_matlab(n,m,k,rewards,name);
+ * Input:  n,m,k are integers
+ *         rewards is a nmXk gsl_matrix pointer
+ *         name is a null terminated string, if NULL then defaults to "A"
+ * Output: Only sideeffects, the creation/changing of file name.m
+ */
+void print_to_matlab(int n, int m, int k, gsl_matrix *rewards, char* name)
+{
+    FILE *fs = NULL;
+    int num_cols = rewards->size2;
+    gsl_vector_view col;
+    int i, state, action, index;
     
-    // if(strcmp(argv[1],"HELP") == 0 || strcmp(argv[1],"help") == 0 || strcmp(argv[1],"Help") == 0){
-        // print_usage();
-        // return 0;
-    // }
-
-    // FILE *fs = fopen(argv[1], "r");
-
-    // unsigned int class = 0;
-    // unsigned int states = 0;
-    // unsigned int actions = 0;
-    // unsigned int tasks = 0;
-    // int seed_given = 0;
-    // double density = 0.1;
-    // char *file_name = NULL;
-    // gsl_matrix *user_corr = NULL;
-    // char *corr_str = NULL;
-    // gsl_matrix *calc_corr = NULL;
-    // gsl_matrix *rewards = NULL;
-    // gsl_vector *mean = NULL;
-    // char *mean_str = NULL;
-    // gsl_vector *stddev = NULL;
-    // char *stddev_str = NULL;
-    // gsl_vector *lower = NULL;
-    // char *lower_str = NULL;
-    // gsl_vector *upper = NULL;
-    // char *upper_str = NULL;
+    if(name == NULL){
+        fprintf(stderr, "Warning: Output file and matrix name unspecified, using A as default\n");
+        name = "A";
+    }
     
-    // int i, j, k;
+    char *filename = (char*)malloc(strlen(name) + 3);
+    strcpy(filename, name);
+    strcat(filename, ".m");
     
-    // printf("is 1? %d - is 1? %d - is 1? %d\n", 4/3, 3/2, 5/3);
-    
-    
-    
-    // if(fs){
-        // char *buffer = malloc(sizeof(char*) * B_SIZE);
-        // char *str_buffer = NULL;
-        // long file_size = 0;
-        // int b_size = 0;
-        // i = 0;
+    if((fs = fopen(filename, "w"))){
+        printf("Printing to file %s\n", filename);
+        fprintf(fs, "%s_count = %d;\n\n", name, k);
         
-        // //Get file length 
-        // fseek(fs, 0, SEEK_END);
-        // file_size = ftell(fs);
-        // rewind(fs);
+        for(i=0; i<num_cols; ++i) {
+            fprintf(fs, "%s_t%d = [\n\t", name, i + 1);
+            col = gsl_matrix_column(rewards, i);
+            index = 0;
+            for(state=0; state<n; ++state) {
+                for(action=0; action<m; ++action) {
+                    fprintf(fs, "%8.12f,", gsl_vector_get(&col.vector, index++));
+                }
+                fprintf(fs,";\n\t");
+            }
+            fprintf(fs,"];\n\n");
+        }
+        /* Test code, should probably be dropped */
         
-        // //printf("%li\n",file_size);
+        int sq = (int)(ceil(sqrt((double)k)));
+        int j;
+        char *fn = "imagesc";
         
-        // //i = fread(buffer, 1, B_SIZE,fs);
+        fprintf(fs, "figure(1); cla;\n\n");
         
-        // //printf("%d\n",i);
+        index = 0;
+        for(i = 1; i < sq + 1; ++i){
+            for(j = 1; j < sq + 1; ++j){
+                if(index < k){
+                    fprintf(fs, "subplot(%d,%d,%d);\n",sq,sq,++index);
+                    fprintf(fs, "CLIM = max(max(abs(%s_t%d)));\n", name, index);
+                    fprintf(fs, "%s(%s_t%d, [-CLIM, CLIM])\n", fn, name, index);
+                    //printf(fs, "%s(abs(%s_t%d))\n", fn, name, index);
+                    fprintf(fs, "title('%s\\_t%d');\naxis image;\n\n", name, index);
+                }
+            }
+        }
         
-        // //printf(buffer);
+        fprintf(fs, "colormap(jet)\n\n");
         
-        // //i = B_SIZE;
-        // //j = -1;
-        // 
-        // //j = file_size/B_SIZE;
-        // //i = 0;
-        // //fread(buffer, 1, B_SIZE, fs);
-        // //for(k = 0; k <= j; ++k){
-            // //fread(buffer, 1, B_SIZE, fs);
-            // //while(i < B_SIZE){
-                // //switch(state){
-                // //case 0:
-                    // //switch(buffer[i]){
-                    // //case 'a':
-                        // //i += 7;
-                    // //}
-                    // //break;
-                // //}
-            // //}
-            // //i -= B_SIZE;
-        // //}
-        // printf("before while\n");
-        // while(!feof(fs) || i != b_size){
-            // printf("in while - %d - %d %d\n", feof(fs), i, b_size);
-            // if(i == b_size){
-                // b_size = fread(buffer, 1, B_SIZE, fs);
-                // i = 0;
-            // }
-            // switch(buffer[i]){
-            // case 'a':
-                // printf("in case a, i: %d\n",i);
-                // if((str_buffer = check(fs, &buffer, "actions:", &i, &b_size))){
-                    // fprintf(stderr, "Error: Found \"%s\" when trying to match \"actions:\"\n",
-                        // str_buffer);
-                    // free(str_buffer);
-                    // str_buffer = NULL;
-                    // if(buffer) free(buffer);
-                    // goto cleanup;
-                // }
-                // printf("In case a, i: %d, buffer[%d]: %c\n",i,i,buffer[i]);
-                // if(skip_ws(fs, &buffer, "actions", &i, &b_size)) goto cleanup;
-                // printf("In case a, i: %d, buffer[%d]: %c\n",i,i,buffer[i]);
-                // actions = read_i(fs, &buffer, &i, &b_size);
-                // printf("Lookey here: %d\n",actions);
-                // break;
-            // default:
-                // i++;
-            // }
-        // }
+        /* Test code ends */
         
-        // char *curr = &(buffer[1]);
-        // printf("curr: %c, curr+1: %c, curr+3: %c, curr+4: %c,", *curr, *(curr + 1), *(curr + 3), *(curr + 4));
+        fclose(fs);
+    } else
+        fprintf(stderr, "Error: Could not open %s\n", filename);
         
-        // fclose(fs);
-        // if(buffer) free(buffer);
-    // }
-
-// cleanup:
-    // if(fs) fclose(fs);
-    
-    // return 0;
-// }
-*/
+    free(filename);
+}
