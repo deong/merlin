@@ -13,7 +13,7 @@ cfg.txt.out : mtrlgenf cfg.txt
 	./mtrlgenf cfg.txt
 
 mtql.out : cfg.txt.out 
-	./mtqlproto cfg.txt.out > mtql.out
+	./mtqlproto cfg.txt.out > mtql.m
 
 .PHONY : clean
 clean:

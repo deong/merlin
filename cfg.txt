@@ -3,10 +3,10 @@ actions:
      12  density: 0.7 
      
      correlation:     [1 0.3 0.1 0.3 1 0.4 0.1 0.4 1]
-     output filename: Figaro
+     /*output filename: Figaro*/
       states: 7
       tasks: 3
-      class: random problem
+      class: maze
       
       seed: 217
         
