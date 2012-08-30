@@ -86,7 +86,7 @@ void maze_free();
 int is_not_goal(int c);
 char is_goal(int state);
 void maze_random(unsigned long seed, unsigned int extra);
-int prepare_maze_output(FILE *fs);
+int prepare_maze_output(FILE *fs, gsl_vector *goal_value);
 int br_cmp(struct buffered_read *br, const char *prestring, const char *match);
 int contains(char *token, const char *check);
 char * br_skip(struct buffered_read *br);
@@ -308,6 +308,8 @@ void maze_alloc(unsigned int h, unsigned int w, unsigned int tasks)
     } else {
         if( (maze = (struct maze_struct *) malloc(sizeof(struct maze_struct))) ){
             int i;
+            int j;
+            unsigned int state;
             maze->goalcount = tasks;
             maze->start = (int)floor(gsl_rng_uniform(rng)*h*w);;
             maze->goal = (unsigned int *) malloc(sizeof(int)*tasks);
@@ -315,7 +317,13 @@ void maze_alloc(unsigned int h, unsigned int w, unsigned int tasks)
             maze->width = w;
             maze->pathways = gsl_matrix_calloc(h*w, 4);
             for(i = 0; i < tasks; ++i){
-                (maze->goal)[i] = (unsigned int) floor(gsl_rng_uniform(rng)*h*w);
+                state = (unsigned int) floor(gsl_rng_uniform(rng)*h*w);
+                for(j = 0; j < i; j++)
+                    if((maze->goal)[j] == state){
+                        state = (unsigned int) floor(gsl_rng_uniform(rng)*h*w);
+                        j = 0;
+                    }
+                (maze->goal)[i] = state;
             }
         } else {
             fprintf(stderr, "Error: Failed to allocate a maze.\n");
@@ -659,30 +667,34 @@ void maze_random(unsigned long seed, unsigned int extra)
             switch(rand){
             case 0:
                 if(current >= w &&
-                   gsl_matrix_get(maze->pathways, current, rand) == 0){
+                   gsl_matrix_get(maze->pathways, current, 0) == 0){
                     extra--;
-                    gsl_matrix_set(maze->pathways, current, rand, 1);
+                    gsl_matrix_set(maze->pathways, current, 0, 1);
+                    gsl_matrix_set(maze->pathways, current - w, 2, 1);
                 }
                 break;
             case 1:
                 if(current%w != (w-1) &&
-                   gsl_matrix_get(maze->pathways, current, rand) == 0){
+                   gsl_matrix_get(maze->pathways, current, 1) == 0){
                     extra--;
-                    gsl_matrix_set(maze->pathways, current, rand, 1);
+                    gsl_matrix_set(maze->pathways, current, 1, 1);
+                    gsl_matrix_set(maze->pathways, current + 1, 3, 1);
                 }
                 break;
             case 2:
                 if(current < w*(h-1) &&
-                   gsl_matrix_get(maze->pathways, current, rand) == 0){
+                   gsl_matrix_get(maze->pathways, current, 2) == 0){
                     extra--;
-                    gsl_matrix_set(maze->pathways, current, rand, 1);
+                    gsl_matrix_set(maze->pathways, current, 2, 1);
+                    gsl_matrix_set(maze->pathways, current + w, 0, 1);
                 }
                 break;
             case 3:
                 if(current%w != 0 &&
-                   gsl_matrix_get(maze->pathways, current, rand) == 0){
+                   gsl_matrix_get(maze->pathways, current, 3) == 0){
                     extra--;
-                    gsl_matrix_set(maze->pathways, current, rand, 1);
+                    gsl_matrix_set(maze->pathways, current, 3, 1);
+                    gsl_matrix_set(maze->pathways, current - 1, 1, 1);
                 }
                 break;
             }
@@ -878,7 +890,7 @@ void print_maze(FILE *fs)
  *  Specifications are number of tasks, states and actions along with
  *  a transistion matrix and rewards matrix.
  */
-int prepare_maze_output(FILE *fs)
+int prepare_maze_output(FILE *fs, gsl_vector *goal_value)
 {
     if(maze){
         //  task, states, actions
@@ -889,12 +901,20 @@ int prepare_maze_output(FILE *fs)
         unsigned int w = maze->width;
         unsigned int s = maze->height * w;
         unsigned int a = 4;
-        unsigned int r = s*a*10;
         gsl_matrix *m = maze->pathways;
         gsl_matrix *transition = gsl_matrix_alloc(s, a);
         gsl_matrix *rewards = gsl_matrix_calloc(s, t);
-        //gsl_matrix *rewards = gsl_matrix_calloc(s*a, t);
+        gsl_vector *goals;
         int i,j,d;
+        unsigned int r = w > s ? w*2 : s*2;
+        
+        if(goal_value)
+            goals = goal_value;
+        else {
+            goals = gsl_vector_alloc(t);
+            for(i = 0; i < t; ++i)
+                gsl_vector_set(goals, i, r + (int)(gsl_rng_uniform(rng)*2*r));
+        }
         
         for(i = 0; i < s; ++i){
             d = gsl_matrix_get(m, i, 0) ? i-w : -1;
@@ -911,7 +931,7 @@ int prepare_maze_output(FILE *fs)
         }
         
         for(i = 0; i < t; ++i){
-            gsl_matrix_set(rewards, (maze->goal)[i], i, r);
+            gsl_matrix_set(rewards, (maze->goal)[i], i, gsl_vector_get(goals, i));
         }
         
         fprintf(fs, "%d %d %d ", t, s, a);
@@ -1323,7 +1343,7 @@ int main(int argc, char **argv)
         maze_alloc(states, actions, tasks);
         maze_random(seed_given, states);
         print_maze(stdout);
-        prepare_maze_output(fs);
+        prepare_maze_output(fs, lower);
         maze_free();
         break;
     case 2:

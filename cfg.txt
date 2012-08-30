@@ -1,14 +1,14 @@
 actions: 
 
-     12  density: 0.7 
+     10  density: 0.7 
      
      correlation:     [1 0.3 0.1 0.3 1 0.4 0.1 0.4 1]
      /*output filename: Figaro*/
-      states: 7
+      states: 10
       tasks: 3
       class: maze
       
-      seed: 217
+      /*seed: 217*/
         
         
             comment: ;;

@@ -1,4 +1,21 @@
-#define LEARNING_RATE 0.5
+/* A many task Q-learning algorithm.
+ * Runs ITER_COUNT times, starts by selecting a random non-reward
+ * state and ends when it reachs a reward state.
+ * Expects the name of a file as the first argument.
+ * The file should contain one line which is a space seperated
+ * stream of numbers. First should be three positive integers.
+ * Lets call them T, S and A representing the problems number of
+ * tasks, states and actions respectivily. Next should be an
+ * integer matrix with dimensions SxA written row by row,
+ * representing the problems transition matrix where -1 is an
+ * unavailable state, action pair. Lastly there should be double
+ * matrix with dimensions SxT written row by row, representing
+ * the problems rewards matrix.
+ * An optional second parameter is a non negative integer to use
+ * as a seed for random number generation.
+ */
+
+ #define LEARNING_RATE 0.5
 #define DISCOUNT 0.9
 #define ITER_COUNT 50000
 #define EXPLORE 3.0
@@ -59,14 +76,15 @@ int main(int argc, char **argv)
         fprintf(stderr,"%s\n\t%s\n\t%s\n\t%s\n\t%s\n\t%s\n\t%s\n\t%s\n\t%s\n\t%s%s%s",
             "Error:  No input file specified.",
             "The file should contain one line which is a space seperated",
-            "stream of numbers. First should be three positive integers. Lets", "call them T, S and A representing the problems number of tasks,",
+            "stream of numbers. First should be three positive integers. Lets",
+            "call them T, S and A representing the problems number of tasks,",
             "states and actions respectivily.",
             "Next should be an integer matrix with dimensions SxA written row",
             "by row, representing the problems transition matrix where -1 is",
             "an unavailable state, action pair.",
             "Lastly there should be double matrix with dimensions SxT written",
             "row by row, representing the problems rewards matrix.\n\t",
-            "A last optional parameter is a non negative integer to use as a\n",
+            "An optional second parameter is a non negative integer to use as a\n",
             "\tseed for random number generation.");
         return 1;
     }
@@ -144,36 +162,37 @@ int main(int argc, char **argv)
     
     fs = stdout; //TODO: Should be moved to output file name
     
-    //print the transistion matrix, reward matrix, task count and Q-value matrices in a matlab style.
-    fprintf(fs, "transistion =\n[\n");
+    //print the transition matrix, reward matrix, task count and Q-value matrices in a matlab style.
+    fprintf(fs, "transition = [\n");
     for(i = 0; i < state; ++i){
         for(j = 0; j < action; ++j){
             fprintf(fs, "  %ld", trans[i*action + j]);
         }
         fprintf(fs, ";\n");
     }
-    fprintf(fs, "]\n");
+    fprintf(fs, "];\n");
     
-    fprintf(fs, "reward =\n[\n");
+    fprintf(fs, "reward = [\n");
     for(i = 0; i < state; ++i){
         for(j = 0; j < task; ++j){
             fprintf(fs, "  %8.4f", reward[i*task + j]);
         }
         fprintf(fs, ";\n");
     }
-    fprintf(fs, "]\n");
+    fprintf(fs, "];\n");
     
-    fprintf(fs, "taskc = %lu\n", task);
-    for(t = 0; t < task; ++t){
-        fprintf(fs, "q%d =\n[\n",t);
-        for(i = 0; i < state; ++i){
-            for(j = 0; j < action; ++j){
+    fprintf(fs, "taskc = %lu;\n", task);
+    
+    fprintf(fs, "Q = [\n");
+    for(i = 0; i < state; ++i){
+        for(j = 0; j < action; ++j){
+            for(t = 0; t < task; ++t){
                 fprintf(fs, "  %8.4f", q[t*action*state + i*action + j]);
             }
             fprintf(fs, ";\n");
         }
-        fprintf(fs, "]\n");
     }
+    fprintf(fs, "];\n");
     
     if(trans) free(trans);
     trans = NULL;
@@ -311,7 +330,9 @@ void mtql()
         for(i = 0; i < task; ++i){
             // update the current state X chosen action Q-values on a per task basis
             j = i*action*state + pos*action + azi;
-            q[j] = q[j] + a*(reward[dest*task + i] + g*max_q(dest, i) - q[j]);
+            //q[j] = q[j] + a*(reward[dest*task + i] + g*max_q(dest, i) - q[j]);
+            if( (reward[dest*task + i] + g*max_q(dest, i)) > q[j])
+                q[j] = reward[dest*task + i] + g*max_q(dest, i);
         }
         pos = dest;
     }
