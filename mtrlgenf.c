@@ -1066,19 +1066,21 @@ int main(int argc, char **argv)
     gsl_vector *upper = NULL;
     char *upper_str = NULL;
     char *comment = NULL;
-    
-    char *read = NULL;
     char *temp;
     int i;
+    
+    // read is used to store read characters shared by more than one keyword,
+    // after seeing 'c' then read = "c\0\0\0" for keywords "class" and "correlation".
+    // WARNING: If a keyword is added such that two(or more) keywords share more than
+    // the first three letters, then the length of read will need to be increased accordingly.
+    char read[] = {0, 0, 0, 0};
     
     br = br_alloc(argv[1]);
     
     while( (temp = br_peek(br)) ){
     // Loop will run until the buffered reader has seen the whole file.
-    read = "\0\0\0\0";  // read is used to store read characters shared by more than one keyword,
-                        // after seeing 'c' then read = "c\0\0\0" for keywords "class" and "correlation".
-                        // WARNING: If a keyword is added such that two(or more) keywords share more than
-                        // the first three letters, then the length of read will need to be increased accordingly.
+    //read = "\0\0\0\0";  
+    
         switch(*temp){
         // The current character is used to match to a keyword where possible
         // else to a group of keywords all starting on the current character.
