@@ -330,9 +330,9 @@ void mtql()
         for(i = 0; i < task; ++i){
             // update the current state X chosen action Q-values on a per task basis
             j = i*action*state + pos*action + azi;
-            //q[j] = q[j] + a*(reward[dest*task + i] + g*max_q(dest, i) - q[j]);
-            if( (reward[dest*task + i] + g*max_q(dest, i)) > q[j])
-                q[j] = reward[dest*task + i] + g*max_q(dest, i);
+            q[j] = q[j] + a*(reward[dest*task + i] + g*max_q(dest, i) - q[j]);
+            /*if( (reward[dest*task + i] + g*max_q(dest, i)) > q[j])
+                q[j] = reward[dest*task + i] + g*max_q(dest, i);*/
         }
         pos = dest;
     }
