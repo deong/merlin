@@ -1,13 +1,7 @@
-all : mtrlgen mtrlgenf mtqlproto mtql.out
+all : mtrlgen mtrlgenf mtqlproto mtqlseqgreed mtqlrandgreed mtqlbalgreed
 
-mtrlgen : mtrlgen.c
-	gcc -Wall -ggdb mtrlgen.c -o mtrlgen -lgsl -lgslcblas -lm
-
-mtrlgenf : mtrlgenf.c
-	gcc -Wall -ggdb mtrlgenf.c -o mtrlgenf -lgsl -lgslcblas -lm
-
-mtqlproto : mtqlproto.c
-	gcc -Wall -ggdb mtqlproto.c -o mtqlproto -lgsl -lgslcblas -lm
+% : %.c
+	gcc -Wall -ggdb $< -o $@ -lgsl -lgslcblas -lm
 
 cfg.txt.out : mtrlgenf cfg.txt
 	./mtrlgenf cfg.txt
@@ -17,5 +11,6 @@ mtql.out : cfg.txt.out
 
 .PHONY : clean
 clean:
-	rm -f mtrlgen mtrlgenf mtqlproto cfg.txt.out mtql.out
+	for CFILE in *.c; do rm -f ${CFILE%%.c}; done
+	rm -f cfg.txt.out mtql.out
 
