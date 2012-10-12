@@ -14,3 +14,6 @@ clean:
 	for CFILE in *.c; do rm -f ${CFILE%%.c}; done
 	rm -f cfg.txt.out mtql.out
 
+.PHONY : distclean
+distclean:
+	rm -f mtrlgen mtrlgenf mtqlproto mtqlseqgreed mtqlrandgreed mtqlbalgreed
