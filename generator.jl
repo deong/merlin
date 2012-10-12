@@ -86,8 +86,7 @@ function randmvn(mu, R, N)
         return
     end
 
-    #T = chol(R)
-    T = R
+    T = chol(R)
     v = repmat(v, 1, N)
     
     D = (randn(N, c) * T)' + v
