@@ -154,8 +154,6 @@ def write_instance(G,R):
 				for task in xrange(0, k):
 					line += "{0:.3f} ".format(D[node,index,task])
 		print(line)
-	print("\n\n")
-	print(G.edges())
 		
 
 if __name__ == '__main__':

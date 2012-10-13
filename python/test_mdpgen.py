@@ -20,7 +20,7 @@
 # limitations under the License.
 
 import unittest
-import mtrlgen as gen
+import mdpgen as gen
 import math
 import numpy as np
 import numpy.testing as nptest
