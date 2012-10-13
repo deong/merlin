@@ -25,6 +25,7 @@ import math
 import numpy as np
 import numpy.testing as nptest
 import scipy.linalg as sla
+import scipy.stats as sst
 
 class TestRandRewards1(unittest.TestCase):
 
@@ -78,9 +79,53 @@ class TestRandRewards1(unittest.TestCase):
 	# for correct code. I've set this tolerance fairly wide to give
 	# some wiggle room in the comparison, but it isn't foolproof.
 	def checkCorrelations(self, R, data):
-		r = gen.correlation(data)
+		r = self.correlation(data)
 		#nptest.assert_array_almost_equal(R, r, decimal=math.log10(0.2))
 		nptest.assert_array_almost_equal(R, r, decimal=1)
+
+
+	# test the correlations of a generated instance
+	#
+	# parameters:
+	#	D: the generated problem instance
+	#
+	# returns:
+	#	the pearson correlation coefficient between each pair of tasks
+	#
+	# The correlations should be between tasks. D is NxMxk, where N is
+	# the number of states, M the number of actions, and k the number of
+	# tasks. Thus, we want to extract each NxM submatrix, unroll it into
+	# a column vector, and compare all k such column vectors for their
+	# correlation coefficients.
+	def correlation(self, D):
+		n, m, k = D.shape
+		corr = np.zeros([k, k])
+		for i in range(0, k):
+			for j in range(0, k):
+				x = np.reshape(D[:,:,i], n*m)
+				y = np.reshape(D[:,:,j], n*m)
+				corr[i, j] = (sst.pearsonr(x,y)[0])
+		return corr
+
+
+
+class TestRandomGraph1(unittest.TestCase):
+
+	def test_outdegree1(self):
+		numStates = 100
+		numActions = 4
+		G = gen.randgraph1(numStates, numActions)
+		for node in G:
+			succ = [y for (x,y) in G.edges() if x==node]
+			self.assertEqual(len(succ), numActions)
+
+	def test_outdegree2(self):
+		numStates = 2000
+		numActions = 10
+		G = gen.randgraph1(numStates, numActions)
+		for node in G:
+			succ = [y for (x,y) in G.edges() if x==node]
+			self.assertEqual(len(succ), numActions)
 
 
 if __name__ == '__main__':

@@ -26,7 +26,6 @@ import random
 import numpy as np
 import scipy as sp
 import scipy.linalg as sla
-import scipy.stats as sst
 import numpy.random as npr
 import networkx as nx
 
@@ -68,6 +67,8 @@ def randinst1(nstates, nactions, covmat):
 #   equal to edges and in-degree > 0.
 #
 def randgraph1(nodes, edges):
+	"""Create a random graph representing the transition graph for a
+	random MDP."""
 	# need din/dout -- degree sequences
 	# dout is easy...every node gets a constant number of outbound edges
 	# equal to the number actions in the MDP. din is tougher...we want
@@ -83,7 +84,7 @@ def randgraph1(nodes, edges):
 	diffs = xs[1:] - xs[:nodes]
 	diffs = sum(dout) / sum(diffs) * diffs
 	din = map(lambda(x): int(round(x)), diffs)
-
+	
 	# at this point, din contains random fan-ins for each node, but we
 	# may have nodes with 0 edges, and due to rounding, we may be off
 	# by one in the sum as well. So walk the list, bumping any zero values
@@ -96,7 +97,7 @@ def randgraph1(nodes, edges):
 			total_in += 1
 	# now remove edges randomly until the degrees match
 	while total_in > sum(dout):
-		node = random.randint(0, nodes)
+		node = random.randint(0, nodes-1)
 		if din[node] > 1:
 			din[node] -= 1
 			total_in -= 1
@@ -104,7 +105,7 @@ def randgraph1(nodes, edges):
 	# edges, add some more. Note that I'm not sure this ever happens,
 	# but it's easy enough to handle.
 	while total_in > sum(dout):
-		node = random.randint(0, nodes)
+		node = random.randint(0, nodes-1)
 		din[node] += 1
 		total_in += 1
 		
@@ -117,26 +118,53 @@ def randgraph1(nodes, edges):
 	return tgraph
 
 
-
-# test the correlations of a generated instance
+# construct a new MDP given a set of rewards and a transition graph
+# and write it to stdout
+#
+# the format of the output records is as follows
+#
+# -------------------------------------------------------------
+# numStates numActions numTasks
+#
+# 0 [successor [reward_i]{numTasks}]{numActions}
+# ...
+# numStates-1 [successor [reward_i]{numTasks}]{numActions}
+# -------------------------------------------------------------
 #
 # parameters:
-#	D: the generated problem instance
+#   G: state transition graph
+#   R: reward structure
 #
-# returns:
-#	the pearson correlation coefficient between each pair of tasks
-#
-# The correlations should be between tasks. D is NxMxk, where N is
-# the number of states, M the number of actions, and k the number of
-# tasks. Thus, we want to extract each NxM submatrix, unroll it into
-# a column vector, and compare all k such column vectors for their
-# correlation coefficients.
-def correlation(D):
-	n, m, k = D.shape
-	corr = np.zeros([k, k])
-	for i in range(0, k):
-		for j in range(0, k):
-			x = np.reshape(D[:,:,i], n*m)
-			y = np.reshape(D[:,:,j], n*m)
-			corr[i, j] = (sst.pearsonr(x,y)[0])
-	return corr
+def write_instance(G,R):
+	n, m, k = R.shape
+	# number of nodes in the transition graph should be equal to
+	# the number of states in the reward matrix
+	assert(G.number_of_nodes() == n)
+	print("{} {} {}\n".format(n, m, k))
+	for node in G:
+		line = "{} ".format(node)
+		for index, edge in enumerate(G.successors(node)):
+			# note that the enumeration flattens out any duplicated
+			# edges; dups are fine for MDPs -- they just indicate two
+			# actions that lead to the same successor state. So we
+			# compensate for this by calculating the number of dups
+			# and explicitly repeating them the right number of times
+			for i in xrange(0, len(G[node][edge])):
+				line += "{} ".format(edge)
+				for task in xrange(0, k):
+					line += "{0:.3f} ".format(D[node,index,task])
+		print(line)
+	print("\n\n")
+	print(G.edges())
+		
+
+if __name__ == '__main__':
+	states = 100
+	actions = 4
+	tasks = 3
+	R = np.asarray([[ 1.0,	0.4, -0.4],
+					[ 0.4,	1.0,  0.6],
+					[-0.4,	0.6,  1.0]])
+	D = randinst1(states, actions, R)
+	G = randgraph1(states, actions)
+	write_instance(G,D)
