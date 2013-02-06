@@ -28,6 +28,8 @@ import scipy.linalg as sla
 import numpy.random as npr
 import networkx as nx
 
+
+
 #
 # create random reward structure for an (nstates, nactions) MDP
 #
@@ -53,6 +55,8 @@ def randinst1(nstates, nactions, covmat):
     mu = [0.0] * ntasks
     rewards = npr.multivariate_normal(mu, covmat, (nstates, nactions))
     return rewards
+
+
 
 
 #
@@ -82,7 +86,7 @@ def randgraph1(nodes, edges):
     xs = np.sort(np.asarray([random.random() for i in range(nodes + 1)]))
     diffs = xs[1:] - xs[:nodes]
     diffs = sum(dout) / sum(diffs) * diffs
-    din = map(lambda(x): int(round(x)), diffs)
+    din = [int(round(x)) for x in diffs]
 
     # at this point, din contains random fan-ins for each node, but we
     # may have nodes with 0 edges, and due to rounding, we may be off
@@ -117,6 +121,8 @@ def randgraph1(nodes, edges):
     return tgraph
 
 
+
+
 # construct a new MDP given a set of rewards and a transition graph
 # and write it to stdout
 #
@@ -148,9 +154,9 @@ def write_instance(G, R):
             # actions that lead to the same successor state. So we
             # compensate for this by calculating the number of dups
             # and explicitly repeating them the right number of times
-            for i in xrange(0, len(G[node][edge])):
+            for i in range(0, len(G[node][edge])):
                 line += "{} ".format(edge)
-                for task in xrange(0, k):
+                for task in range(0, k):
                     line += "{0:.3f} ".format(D[node, index, task])
         print(line)
 
