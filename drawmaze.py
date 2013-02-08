@@ -106,6 +106,5 @@ def make_multimaze(width, height):
 
 
 if __name__ == "__main__":
-    maze = make_multimaze(100, 50)
-    print(maze)
-    draw_multimaze(maze, 800, 400)
+    maze = make_multimaze(200, 200)
+    draw_multimaze(maze, 800, 800)

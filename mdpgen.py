@@ -167,15 +167,13 @@ def write_instance(G, R):
 #
 # Code adapted from 
 # http://code.activestate.com/recipes/578378-random-multi-maze-generator/
-# MIT License.
+# Available under MIT License.
 #
 # The output of this function is a 2d matrix structure, where the (i,j) pair
 # is the "path number", i.e., maze[i][j] = k if cell (i,j) in the maze is
 # used by the k-th distinct path through the maze.
 # 
-def make_multimaze(width, height):
-    m = random.randint(5, 15) # of maze paths
-
+def make_multimaze(width, height, nTasks):
     # width and height of the maze
     mx = width  
     my = height 
@@ -187,7 +185,7 @@ def make_multimaze(width, height):
     maze = [[0 for x in range(mx)] for y in range(my)]
 
     stack = [] # array of stacks
-    for i in range(m):
+    for i in range(nTasks):
         while True:
             kx = random.randint(0, mx - 1); ky = random.randint(0, my - 1)
             if maze[ky][kx] == 0: break
@@ -197,7 +195,7 @@ def make_multimaze(width, height):
     cont = True # continue
     while cont:
         cont = False
-        for p in range(m):
+        for p in range(nTasks):
             if len(stack[p]) > 0:
                 cont = True # continue as long as there is a non-empty stack
                 (cx, cy) = stack[p][-1]
@@ -226,13 +224,41 @@ def make_multimaze(width, height):
 
 
 #
-# take a maze created from make_multimaze and return an identical maze but
-# with only two "colors" corresponding to walls and open spaces
-# 
-def binarize_maze(maze):
-    return maze > 0
+# convert a generated maze to a graph structure to be written out
+#
+def convert_maze_to_instance(maze):
+    G = nx.Graph()
+    nodes = maze.size
+    G.add_nodes_from(range(nodes))
+    for row in range(maze.shape[0]):
+        for col in range(maze.shape[2]):
+            node_num = rowcol_to_index(maze, row, col)
+            up_neighbor = rowcol_to_index(maze, row+1, col)
+            if up_neighbor:
+                G.add_edge(node_num, up_neighbor)
+            down_neighbor = rowcol_to_index(maze, row-1, col)
+            if down_neighbor:
+                G.add_edge(node_num, down_neighbor)
+            left_neighbor = rowcol_to_index(maze, row, col-1)
+            if left_neighbor:
+                G.add_edge(node_num, left_neighbor)
+            right_neighbor = rowcol_to_index(maze, row, col+1)
+            if right_neighbor:
+                G.add_edge(node_num, right_neighbor)
+    
+            
+#
+# take a maze, row, and column, and return a node number or None
+# if the requested row and column are out of bounds
+#
+def rowcol_to_index(maze, row, col):
+    index = row*maze.shape[0] + col
+    if index >= maze.size:
+        return None
+    else:
+        return index
 
-
+    
 if __name__ == '__main__':
     states = 100
     actions = 4
@@ -244,6 +270,6 @@ if __name__ == '__main__':
     G = randgraph1(states, actions)
     write_instance(G, D)
 
-    maze = make_maze(6, 6)
-    maze2 = make_multimaze(100,100)
+    maze = make_multimaze(200,200)
+    
     print(maze)
