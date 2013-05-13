@@ -20,7 +20,7 @@
 # limitations under the License.
 
 import unittest
-import mdpgen as gen
+import mtlgen as gen
 import math
 import numpy as np
 import numpy.random as npr
@@ -163,12 +163,15 @@ class TestRGUD(unittest.TestCase):
 
     # test whether some random graphs are strongly connected
     def test_connectedness(self):
-        ntests = 20
+        ntests = 50
+        nsuccess = 0
         for test in range(ntests):
             numStates = npr.randint(100, 5000)
             numActions = npr.randint(2, 20)
-            G = gen.rgud(numStates, numActions)
-            self.assertTrue(nx.is_strongly_connected(G))
+            G = gen.make_strongly_connected(gen.rgud(numStates, numActions))
+            if nx.number_strongly_connected_components(G) == 1:
+                nsuccess += 1
+        self.assertEqual(nsuccess, ntests)
             
 
 # Test cases for maze generation

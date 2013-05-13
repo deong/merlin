@@ -30,7 +30,7 @@ import numpy as np
 import scipy.linalg as sla
 import numpy.random as npr
 import networkx as nx
-
+from math import log2
 
 #
 # create random reward structure for an (nstates, nactions) MDP
@@ -124,7 +124,88 @@ def rgud(nodes, edges):
     return tgraph
 
 
+#
+# take an arbitrary directed graph and make it strongly connected,
+# maintaining the total number of incoming and outgoing edges for
+# each vertex.
+#
+def make_strongly_connected(G):
+    components = nx.strongly_connected_components(G)
+    num_components = len(components)
+    if num_components == 1:
+        return G
 
+    # for each connected component, connect one node to a node in
+    # the successor component, and delete an edge to make up for it.
+    # which edge to delete isn't trivial -- it only needs to be an edge
+    # that is somehow redundant in terms of connecting the graph. Our
+    # approach is to delete an edge at random, and keep trying until
+    # either the graph is connected or we exhaust the number of tries.
+    attempts = 0
+    max_attempts = num_components * log2(num_components)
+    while num_components > 1 and attempts < max_attempts:
+        for index in range(num_components):
+            source_comp = components[index]
+            target_comp = components[(index+1) % num_components]
+
+            # pick a random vertex from the source component and connect it
+            # to a vertex in the target component, deleting one of the outgoing
+            # edges from the source vertex to keep the degree constant
+            source_vertex = source_comp[npr.randint(len(source_comp))]
+            target_vertex = target_comp[npr.randint(len(target_comp))]
+            source_edges = list(G[source_vertex].keys())
+            G.remove_edge(source_vertex, source_edges[npr.randint(len(source_edges))])
+            G.add_edge(source_vertex, target_vertex)
+        components = nx.strongly_connected_components(G)
+        num_components = len(components)
+        attempts += 1
+    return G
+
+        #     # is the source component connected to the target?
+        #     connected = False
+        #     for source_node in source_comp:
+        #         succs = list(G[source_node].keys())
+        #         for succ in succs:
+        #             if succ in target_comp:
+        #                 # OK...at least one node in the source component
+        #                 # is already connected to a node in the target
+        #                 # component, so we can stop this iteration
+        #                 connected = True
+        #                 break
+        #         if not connected:
+        #             # no connection from source to target component. Need to
+        #             # make one. Pick a random vertex from the current component.
+        #             # If it has an edge inside the component, we're done. Otherwise,
+        #             # discard it and try again. After a maximum number of tries,
+        #             # just give up.
+        #             self_connected = False
+        #             selected_vertex = None
+        #             selected_edge = None
+        #             max_tries = len(source_comp) * log2(len(source_comp))
+        #             attempts = 0
+        #             while not self_connected and attempts < max_tries:
+        #                 source_node = succs[npr.randint(len(succs))]
+        #                 out_edges = list(G[source_node].keys())
+        #                 for edge in out_edges:
+        #                     if edge in source_comp:
+        #                         self_connected = True
+        #                         selected_vertex = source_node
+        #                         selected_edge = edge
+        #                         break
+        #                 if not self_connected:
+        #                     attempts += 1
+        # 
+        #             if selected_vertex:
+        #                 new_edge = target_comp[npr.randint(len(target_comp))]
+        #                 print("adding edge from {} to {}, removing edge from {} to {}".format(selected_vertex, new_edge, selected_vertex, selected_edge))
+        #                 G.remove_edge(selected_vertex, selected_edge)
+        #                 G.add_edge(selected_vertex, new_edge)
+        #                 connected = True
+        #                 break
+        # return G
+                    
+                
+            
 
 # construct a new MDP given a set of rewards and a transition graph
 # and write it to stdout
@@ -329,6 +410,38 @@ def cor2cov(R, sigma):
     return np.diag(sigma).dot(R).dot(np.diag(sigma))
 
 
+
+def demo_rgud():
+    R = np.asarray([[ 1.0,  0.4, -0.4],
+                    [ 0.4,  1.0,  0.6],
+                    [-0.4,  0.6,  1.0]])
+    
+    nstates = 50
+    nactions = 2
+    mu = [100.0] * 3
+    sigma = [10.0] * 3
+    cov = cor2cov(R, sigma)
+    rewards = mvnrewards(nstates, nactions, mu, cov)
+    G = rgud(nstates, nactions)
+    cc = nx.strongly_connected_components(G)
+    G2 = make_strongly_connected(G)
+    cc2 = nx.strongly_connected_components(G2)
+    return (G, G2, cc, cc2)
+
+def demo_maze():
+    R = np.asarray([[ 1.0,  0.4, -0.4],
+                    [ 0.4,  1.0,  0.6],
+                    [-0.4,  0.6,  1.0]])
+    
+    mu = [100.0] * 3
+    sigma = [10.0] * 3
+    cov = cor2cov(R, sigma)
+    z = make_multimaze(10, 10, 3)
+    goals = maze_goal_states(z, 3, mu, cov)
+    return (z, goals)
+
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument(      "--demo",                      help="run with a sample set of parameters", action='store_true')
@@ -346,18 +459,18 @@ if __name__ == '__main__':
 
 
     if args.demo:
-        # testing
-        R = np.asarray([[ 1.0,  0.4, -0.4],
-                        [ 0.4,  1.0,  0.6],
-                        [-0.4,  0.6,  1.0]])
+        # testing mazes
+        # demo_maze()
+        # sys.exit(0)
 
-        mu = [100.0] * 3
-        sigma = [10.0] * 3
-        cov = cor2cov(R, sigma)
-        z = make_multimaze(10, 10, 3)
-        goals = maze_goal_states(z, 3, mu, cov)
-        write_maze_instance(z, goals)
-        print("# type=rzcgl, rows=10, cols=10, correlation={}, stdev={}".format(R.tolist(), sigma))
+
+        # testing random graphs
+        G, G2 = demo_rgud()
+        cc = nx.strongly_connected_components(G)
+        print("{} components: {}".format(len(cc), cc))
+        G2 = make_strongly_connected(G)
+        cc2 = nx.strongly_connected_components(G2)
+        print("{} components: {}".format(len(cc2), cc2))
         sys.exit(0)
         # end testing
 
@@ -413,3 +526,5 @@ if __name__ == '__main__':
     #                 [ 0.0, -0.1,  0.2,  1.0]])
     # R = np.asarray([[1.0, 0.0],
     #                 [0.0, 1.0]])
+
+
