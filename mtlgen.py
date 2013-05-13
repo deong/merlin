@@ -30,7 +30,7 @@ import numpy as np
 import scipy.linalg as sla
 import numpy.random as npr
 import networkx as nx
-from math import log2
+import math
 
 #
 # create random reward structure for an (nstates, nactions) MDP
@@ -142,7 +142,7 @@ def make_strongly_connected(G):
     # approach is to delete an edge at random, and keep trying until
     # either the graph is connected or we exhaust the number of tries.
     attempts = 0
-    max_attempts = num_components * log2(num_components)
+    max_attempts = num_components * math.log2(num_components)
     while num_components > 1 and attempts < max_attempts:
         for index in range(num_components):
             source_comp = components[index]
@@ -161,50 +161,6 @@ def make_strongly_connected(G):
         attempts += 1
     return G
 
-        #     # is the source component connected to the target?
-        #     connected = False
-        #     for source_node in source_comp:
-        #         succs = list(G[source_node].keys())
-        #         for succ in succs:
-        #             if succ in target_comp:
-        #                 # OK...at least one node in the source component
-        #                 # is already connected to a node in the target
-        #                 # component, so we can stop this iteration
-        #                 connected = True
-        #                 break
-        #         if not connected:
-        #             # no connection from source to target component. Need to
-        #             # make one. Pick a random vertex from the current component.
-        #             # If it has an edge inside the component, we're done. Otherwise,
-        #             # discard it and try again. After a maximum number of tries,
-        #             # just give up.
-        #             self_connected = False
-        #             selected_vertex = None
-        #             selected_edge = None
-        #             max_tries = len(source_comp) * log2(len(source_comp))
-        #             attempts = 0
-        #             while not self_connected and attempts < max_tries:
-        #                 source_node = succs[npr.randint(len(succs))]
-        #                 out_edges = list(G[source_node].keys())
-        #                 for edge in out_edges:
-        #                     if edge in source_comp:
-        #                         self_connected = True
-        #                         selected_vertex = source_node
-        #                         selected_edge = edge
-        #                         break
-        #                 if not self_connected:
-        #                     attempts += 1
-        # 
-        #             if selected_vertex:
-        #                 new_edge = target_comp[npr.randint(len(target_comp))]
-        #                 print("adding edge from {} to {}, removing edge from {} to {}".format(selected_vertex, new_edge, selected_vertex, selected_edge))
-        #                 G.remove_edge(selected_vertex, selected_edge)
-        #                 G.add_edge(selected_vertex, new_edge)
-        #                 connected = True
-        #                 break
-        # return G
-                    
-                
             
 
 # construct a new MDP given a set of rewards and a transition graph
@@ -463,13 +419,9 @@ if __name__ == '__main__':
         # demo_maze()
         # sys.exit(0)
 
-
         # testing random graphs
-        G, G2 = demo_rgud()
-        cc = nx.strongly_connected_components(G)
+        G, G2, cc, cc2 = demo_rgud()
         print("{} components: {}".format(len(cc), cc))
-        G2 = make_strongly_connected(G)
-        cc2 = nx.strongly_connected_components(G2)
         print("{} components: {}".format(len(cc2), cc2))
         sys.exit(0)
         # end testing
