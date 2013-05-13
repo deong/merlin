@@ -23,6 +23,7 @@ import unittest
 import mdpgen as gen
 import math
 import numpy as np
+import numpy.random as npr
 import numpy.testing as nptest
 import scipy.linalg as sla
 import scipy.stats as sst
@@ -34,31 +35,40 @@ class TestMVNRewards(unittest.TestCase):
     def test_rewards1(self):
         numStates = 1000
         numActions = 5
+        mu = [20, 0, 50]
+        sigma = [5, 5, 10]
         R = np.asarray([[ 1.0,  0.4, -0.4],
                         [ 0.4,  1.0,  0.6],
                         [-0.4,  0.6,  1.0]])
-        D = gen.mvnrewards(numStates, numActions, R)
+        cov = gen.cor2cov(R, sigma)
+        D = gen.mvnrewards(numStates, numActions, mu, cov)
         self.checkCorrelations(R, D)
     
     # another basic test
     def test_rewards2(self):
         numStates = 5000
         numActions = 20
+        mu = [10, 10, 10]
+        sigma = [1, 1, 1]
         R = np.asarray([[ 1.0, -0.7, -0.5],
                         [-0.7,  1.0,  0.8],
                         [-0.5,  0.8,  1.0]])
-        D = gen.mvnrewards(numStates, numActions, R)
+        cov = gen.cor2cov(R, sigma)
+        D = gen.mvnrewards(numStates, numActions, mu, cov)
         self.checkCorrelations(R, D)
     
     # moving to four tasks
     def test_rewards3(self):
         numStates = 200
         numActions = 8
+        mu = [0, -10, 30, 0]
+        sigma = [5, 0.5, 10, 2.0]
         R = np.asarray([[ 1.0,  0.2, -0.5,  0.0],
                         [ 0.2,  1.0,  0.4,  0.0],
                         [-0.5,  0.4,  1.0,  0.6],
                         [ 0.0,  0.0,  0.6,  1.0]])
-        D = gen.mvnrewards(numStates, numActions, R)
+        cov = gen.cor2cov(R, sigma)
+        D = gen.mvnrewards(numStates, numActions, mu, cov)
         self.checkCorrelations(R, D)
     
     # pick an invalid covariance matrix (not positive definite)
@@ -66,10 +76,13 @@ class TestMVNRewards(unittest.TestCase):
     def test_invalidR(self):
         numStates = 1000
         numActions = 10
+        mu = [0.0] * 3
+        sigma = [1.0] * 3 
         R = np.asarray([[ 1.0, -0.7,  0.8],
                         [-0.7,  1.0,  0.9],
                         [ 0.8,  0.9,  1.0]])
-        self.assertRaises(sla.LinAlgError, gen.mvnrewards, numStates, numActions, R)
+        cov = gen.cor2cov(R, sigma)
+        self.assertRaises(sla.LinAlgError, gen.mvnrewards, numStates, numActions, mu, R)
         
 
     # note the number of digits of precision is taken as log10(0.2)
@@ -121,7 +134,7 @@ class TestRGUD(unittest.TestCase):
         for node in G:
             succ = [y for (x,y) in G.edges() if x==node]
             self.assertEqual(len(succ), numActions)
-
+    
     def test_outdegree2(self):
         numStates = 2000
         numActions = 10
@@ -129,7 +142,7 @@ class TestRGUD(unittest.TestCase):
         for node in G:
             succ = [y for (x,y) in G.edges() if x==node]
             self.assertEqual(len(succ), numActions)
-
+    
     def test_outdegree3(self):
         numStates = 200
         numActions = 2
@@ -137,38 +150,50 @@ class TestRGUD(unittest.TestCase):
         for node in G:
             succ = [y for (x,y) in G.edges() if x==node]
             self.assertEqual(len(succ), numActions)
-            
+
+    # this one has way more edges than nodes, so there must be loads of
+    # redundant edges
     def test_outdegree4(self):
         numStates = 50
-        numActions = 100
+        numActions = 1000
         G = gen.rgud(numStates, numActions)
         for node in G:
             succ = [y for (x,y) in G.edges() if x==node]
             self.assertEqual(len(succ), numActions)
 
     # test whether some random graphs are strongly connected
-    def test_connected1(self):
-        numStates = 100
-        numActions = 4
-        G = gen.rgud(numStates, numActions)
-        self.assertTrue(nx.is_strongly_connected(G))
-
-    def test_connected2(self):
-        numStates = 200
-        numActions = 8
-        G = gen.rgud(numStates, numActions)
-        self.assertTrue(nx.is_strongly_connected(G))
-
-    def test_connected3(self):
-        numStates = 1000
-        numActions = 10
-        G = gen.rgud(numStates, numActions)
-        self.assertTrue(nx.is_strongly_connected(G))
-
+    def test_connectedness(self):
+        ntests = 20
+        for test in range(ntests):
+            numStates = npr.randint(100, 5000)
+            numActions = npr.randint(2, 20)
+            G = gen.rgud(numStates, numActions)
+            self.assertTrue(nx.is_strongly_connected(G))
+            
 
 # Test cases for maze generation
-class TestMultimaze(unittest.TestCase):
-    def test_
+class TestMultimaze1(unittest.TestCase):
+    def setUp(self):
+        self.R = np.asarray([[ 1.0,  0.4, -0.4],
+                             [ 0.4,  1.0,  0.6],
+                             [-0.4,  0.6,  1.0]])
+        self.mu = [100.0] * 3
+        self.sigma = [10.0] * 3
+        self.cov = gen.cor2cov(self.R, self.sigma)
+        self.maze = gen.make_multimaze(4, 4, 3)
+        self.goals = gen.maze_goal_states(self.maze, 3, self.mu, self.cov)
+
+    # make sure that each task has a positive goal state somewhere
+    def test_goals_exist(self):
+        tasks, rows, cols = self.goals.shape
+        for task in range(tasks):
+            # find the positive goal state for the current task
+            goal_loc = None
+            for row in range(rows):
+                for col in range(cols):
+                    if self.goals[task, row, col] > 0:
+                        goal_loc = gen.rowcol_to_index(self.maze, row, col)
+            self.assertTrue(goal_loc != None)
  
 
 if __name__ == '__main__':

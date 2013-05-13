@@ -99,16 +99,18 @@ def rgud(nodes, edges):
         if degree < 1:
             din[index] = 1
             total_in += 1
+
     # now remove edges randomly until the degrees match
     while total_in > sum(dout):
         node = random.randint(0, nodes - 1)
         if din[node] > 1:
             din[node] -= 1
             total_in -= 1
+
     # finally, a last sanity check...if we don't have enough inbound
     # edges, add some more. Note that I'm not sure this ever happens,
     # but it's easy enough to handle.
-    while total_in > sum(dout):
+    while total_in < sum(dout):
         node = random.randint(0, nodes - 1)
         din[node] += 1
         total_in += 1
@@ -161,6 +163,25 @@ def write_instance(G, R):
                     line += "{0:.3f} ".format(R[node, index, task])
         print(line)
     print("\n")
+
+
+
+
+#
+# Maze-type problems (gridworld)
+#
+# The basic structure of this type of problem is that each is a 2-d world consisting
+# of separate "trails" for each task. Note that there are generally no walls between
+# these trails, so an agent is free to move through the world as it chooses. The trails
+# simply imply that each cell in the world is marked with a task number, and if the
+# agent is in a cell with task number X, there is a path leading to the goal state for
+# task X through which all intermediate cells are also marked X.
+#
+# The transition dynamics are simple up, down, left, right actions for each state. If
+# you are at a boundary cell, attempting to move out of the world results in a negative
+# penalty for each task and leaves the agent in the same state. This is true even if
+# the current state is a goal state.
+#
 
 
 #
@@ -237,53 +258,54 @@ def make_multimaze(width, height, nTasks):
 # zeros everywhere except for $tasks non-zero entries.
 #
 def maze_goal_states(maze, tasks, mu, cov):
-    # for each task, build a list of maze locations with that task
-    # id
     rows = maze.shape[0]
     cols = maze.shape[1]
     reward_values = npr.multivariate_normal(mu, cov)
-    goals = np.zeros([rows, cols, tasks])
-    pgoals = np.zeros((rows, cols))
+    goals = np.zeros([tasks, rows, cols])
+    
+    # for each task, build a list of maze locations with that task id;
+    # choose one at random to be the selected goal state for that task
     for task in range(tasks):
         locs = np.transpose(np.where(maze == (task+1)))
         goal_loc = locs[npr.randint(0, len(locs))]
-        print("goal_loc={}".format(goal_loc))
-        goals[goal_loc[0], goal_loc[1], task] = reward_values[task]
-        pgoals[goal_loc[0], goal_loc[1]] = reward_values[task]
-    print(pgoals)
+        goals[task, goal_loc[0], goal_loc[1]] = reward_values[task]
     return goals
 
 
 #
-# convert a generated maze to a graph structure to be written out
+# write an instance of the multimaze problem
 #
-def maze_transition_graph(maze, goals):
-    rows, cols, tasks = goals.shape
-    rewards = np.zeros((rows*cols, 4, tasks))
-    G = nx.MultiDiGraph()
-    nodes = maze.size
-    assert(nodes == rows*cols)
-    G.add_nodes_from(range(nodes))
+# Ideally, this should be unified with the graph instances, but the
+# way that duplicate edges are handled in the graph-based instances
+# loses information that is important for mazes (it mixes up which
+# action is which). For now I handle this by using a custom writer
+# for the mazes.
+#
+def write_maze_instance(maze, goals):
+    tasks, rows, cols = goals.shape
+    print("{} {} {}\n".format(rows*cols, 4, tasks))
+
     for row in range(rows):
         for col in range(cols):
             node_num = rowcol_to_index(maze, row, col)
-            # order of neighbors is up, down, left, right
-            neighbors = [(x,col) for x in [row-1,row+1]] + [(row,y) for y in [col-1,col+1]]
+            line = "{} ".format(node_num)
+
+            # order of actions is up, down, left, right
+            neighbors = [(x, col) for x in [row-1, row+1]] + [(row, y) for y in [col-1, col+1]]
             for action, (x,y) in enumerate(neighbors):
-                idx = rowcol_to_index(maze, x, y)
-                if idx != None:
-                    G.add_edge(node_num, idx)#, weight=goals[x,y], task=maze[x,y])
-                    print("node={}, idx={}, action={}, maze[{},{}]={}, goals[{},{}]={}".format(node_num, idx, action, x, y, maze[x,y], x, y, goals[x,y]))
-                    task_num = maze[x,y]-1
-                    rewards[node_num, action, task_num] = goals[x,y,task_num]
+                target = rowcol_to_index(maze, x, y)
+                if target != None:
+                    line += "{} ".format(target)
+                    for task in range(tasks):
+                        line += "{} ".format(goals[task, x, y])
                 else:
-                    G.add_edge(node_num, node_num)#, weight=-10, task=0)
-                    for task_num in range(tasks):
-                        rewards[node_num, action, task_num] = -10
-    return (G, rewards)
+                    line += "{} ".format(node_num)
+                    for task in range(tasks):
+                        line += "{} ".format(-10)
+            print(line)
+    print("\n")
 
 
-    
 #
 # take a maze, row, and column, and return a node number or None
 # if the requested row and column are out of bounds
@@ -299,8 +321,17 @@ def rowcol_to_index(maze, row, col):
         return index
 
 
+
+#
+# convert a correlation matrix to a covariance matrix with given standard deviations
+#
+def cor2cov(R, sigma):
+    return np.diag(sigma).dot(R).dot(np.diag(sigma))
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
+    parser.add_argument(      "--demo",                      help="run with a sample set of parameters", action='store_true')
     parser.add_argument("-t", "--type",       default=None,  help="problem instance type {rgudcr,rzcgl}")
     parser.add_argument("-n", "--states",     default=100,   help="size of the state space", type=int)
     parser.add_argument("-m", "--actions",    default=4,     help="number of available actions", type=int)
@@ -314,31 +345,22 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
 
-    # testing
-    R = np.asarray([[ 1.0,  0.4, -0.4],
-                    [ 0.4,  1.0,  0.6],
-                    [-0.4,  0.6,  1.0]])
-    # mu = np.asarray([0,0,0])
-    # sigma = np.asarray([1,1,1])
-    # cov = np.diag(sigma).dot(R).dot(np.diag(sigma))
-    # rewards = mvnrewards(args.states, args.actions, mu, cov)
-    # print(rewards)
-    # rewards = np.reshape(rewards, [3, args.states, args.actions])
-    # print(rewards)
-    # sys.exit(1)
+    if args.demo:
+        # testing
+        R = np.asarray([[ 1.0,  0.4, -0.4],
+                        [ 0.4,  1.0,  0.6],
+                        [-0.4,  0.6,  1.0]])
 
-    mu = [100.0] * 3
-    sigma = [10.0] * 3
-    cov = np.diag(sigma).dot(R).dot(np.diag(sigma))
-    z = make_multimaze(4, 4, 3)
-    goals = maze_goal_states(z, 3, mu, cov)
-    print(cov)
-    print(z)
-    print(goals)
-    mtg, rewards = maze_transition_graph(z, goals)
-    write_instance(mtg, rewards)
-    sys.exit(0)
-    # end testing
+        mu = [100.0] * 3
+        sigma = [10.0] * 3
+        cov = cor2cov(R, sigma)
+        z = make_multimaze(10, 10, 3)
+        goals = maze_goal_states(z, 3, mu, cov)
+        write_maze_instance(z, goals)
+        print("# type=rzcgl, rows=10, cols=10, correlation={}, stdev={}".format(R.tolist(), sigma))
+        sys.exit(0)
+        # end testing
+
     
     if not args.type:
         parser.print_help()
@@ -359,7 +381,7 @@ if __name__ == '__main__':
         args.stdev = np.asarray(ast.literal_eval(args.stdev))
         
     # compute a covariance matrix from the correlation matrix and standard deviations
-    cov = np.diag(args.stdev).dot(args.correlation).dot(np.diag(args.stdev))
+    cov = cor2cov(args.correlation, args.stdev)
         
     if args.type == "rgudcr":
         mu = [0.0] * args.tasks
@@ -371,9 +393,10 @@ if __name__ == '__main__':
     elif args.type == "rzcgl":
         maze = make_multimaze(args.rows, args.cols, args.tasks)
         goals = maze_goal_states(maze)
-        transition_graph = maze_transition_graph(maze, goals)
-        rewards = np.zeros([args.rows * args.cols, 4, args.tasks])
-        write_instance(transition_graph, rewards)
+        # transition_graph = maze_transition_graph(maze, goals)
+        # rewards = np.zeros([args.rows * args.cols, 4, args.tasks])
+        # write_instance(transition_graph, rewards)
+        write_maze_instance(maze, goals)
         print("# type={}, rows={}, cols={}, correlation={}, stdev={}".
               format(args.type, args.rows, args.col, args.correlation.tolist(), args.stdev.tolist()))
     else:
