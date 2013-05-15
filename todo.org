@@ -1,0 +1,13 @@
+#+TITLE: MTMDP Instance Generation
+
+* Problem Types 
+** DONE Random Graph-Correlated Rewards
+CLOSED: [2013-05-15 Wed 22:48]
+name: rgudcr
+** TODO Random Graph, variable degree
+name: rgvdcr
+** TODO Random Maze-Correlated Goal Locations
+name: rzcgl
+Mostly done, but the rewards aren't correlated correctly yet
+** TODO Random Graph-Correlated Discrete Rewards
+name: rguddr
