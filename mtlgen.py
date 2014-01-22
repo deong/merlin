@@ -206,6 +206,25 @@ def write_instance(G, R):
 
 
 
+# create a smooth "landscape" of real values on a mesh
+#
+# For the neural network-based continuous MDP generation, we need to associate
+# a real-value with each node in the network. Doing this completely randomly
+# results in a very rugged transition graph -- moving from one state to an
+# adjacent state often results in a very large jump in the real-valued state
+# space, which is both physically unrealistic for most applications, and also
+# very difficult for the network to learn to approximate.
+#
+# Instead, we want to generate a procedural "landscape" so that adjacent values
+# are roughly correlated.
+#
+# parameters:
+#   G: state transition graph
+#   
+def generate_landscape(G):
+	return
+
+
 # construct a continuous MDP based on a random graph
 #
 # The basic idea is to construct a random graph with the desired properties,
