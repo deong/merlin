@@ -224,6 +224,37 @@ def write_instance(G, R):
 def generate_landscape(G):
 	return
 
+# return a 1-D fractal landscape generated using the midpoint displacement method
+def make_fractal(n, ruggedness, rng=1.0, seed=0):
+	points = [npr.random(), npr.random()]
+	return make_fractal_aux(n, points, ruggedness, rng)
+
+def make_fractal_aux(n, points, ruggedness, rng):
+	if len(points) >= n:
+		return points[:n]
+
+	newpoints = [points[0]]
+	for i in range(len(points)-1):
+		p1 = points[i]
+		p2 = points[i+1]
+		newval = (p1+p2)/2 + npr.random()*(rng*2)-rng
+		newpoints.append(newval)
+		newpoints.append(p2)
+
+	rng *= 2**(-ruggedness)
+	return make_fractal_aux(n, newpoints, ruggedness, rng)
+
+
+# return a length n random walk with each step adding Gaussian noise
+def make_gaussian_walk(n, stdev, seed=0):
+	ys = []
+	for i in range(n):
+		y = seed + npr.normal(0, stdev)
+		ys.append(y)
+		seed = y
+	return ys
+
+
 
 # construct a continuous MDP based on a random graph
 #
@@ -243,9 +274,21 @@ def make_continuous_mdp(G, R, inpd):
 	training_set = pybrain.datasets.SupervisedDataSet(inpd + 1, inpd)
 
 	# first, assign a random vector to each state/action pair in the graph
-	state_values = {}
-	for node in G:
-		state_values[node] = npr.random([inpd]) * 2.0 - 1.0
+	# using the fractal landscape method
+	num_points = len(G)
+	state_values = []
+	for d in range(inpd):
+		vals = make_fractal(num_points, 0.75)
+		state_values.append(vals)
+		print(state_values)
+		print('\n\n')
+	state_values = list(zip(*state_values))
+	print(state_values)
+	print('{}x{}'.format(len(state_values), len(state_values[0])))
+		  
+	state_value_map = {}
+	for i, node in enumerate(G):
+		state_value_map[node] = state_values[i]
 
 	# now go back through the graph, for each node connecting it via an action
 	# to a successor node
@@ -266,12 +309,13 @@ def make_continuous_mdp(G, R, inpd):
 	#    4 * inpd = 7.5 seconds
 	nnet = pybrain.tools.shortcuts.buildNetwork(inpd + 1, 4 * inpd, inpd, bias=True)
 	trainer = pybrain.supervised.trainers.BackpropTrainer(nnet, training_set)
-	errors = trainer.trainUntilConvergence()
+	errors = trainer.trainEpochs(1000)
+	#errors = trainer.trainUntilConvergence()
 	# print("training_errors: " + errors)
 
 	print("output: ")
 	for point in training_set:
-		outp = nnet.activate(point)
+		outp = nnet.activate(point[0])
 		print(point)
 		print(outp)
 
