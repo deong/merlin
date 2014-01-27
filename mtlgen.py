@@ -34,6 +34,7 @@ import math
 import pybrain.datasets
 import pybrain.tools.shortcuts
 import pybrain.supervised.trainers
+import matplotlib.pyplot as mpl
 
 #
 # create random reward structure for an (nstates, nactions) MDP
@@ -306,13 +307,14 @@ def make_continuous_mdp(G, R, inpd):
 	print('Training neural network on state dynamics...this may take a while...', file=sys.stderr)
 	errors = trainer.trainUntilConvergence(maxEpochs=2000)
 	print('done\n', file=sys.stderr)
-	print("training_errors: " + str(errors))
+	print(type(errors).__name__)
+	print("training_errors: " + str(errors[0]))
+	mpl.plot(errors[0])
+	mpl.show()
 
 	print("output: ")
 	for point in training_set:
 		outp = nnet.activate(point[0])
-		print(point)
-		print(outp)
 
 	return nnet
 		
