@@ -21,7 +21,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+from __future__ import print_function
 import sys
 import argparse
 import ast
@@ -145,7 +145,7 @@ def make_strongly_connected(G):
 	# approach is to delete an edge at random, and keep trying until
 	# either the graph is connected or we exhaust the number of tries.
 	attempts = 0
-	max_attempts = num_components * math.log2(num_components)
+	max_attempts = num_components * math.log(num_components,2)
 	while num_components > 1 and attempts < max_attempts:
 		for index in range(num_components):
 			source_comp = components[index]
@@ -280,11 +280,7 @@ def make_continuous_mdp(G, R, inpd):
 	for d in range(inpd):
 		vals = make_fractal(num_points, 0.75)
 		state_values.append(vals)
-		print(state_values)
-		print('\n\n')
 	state_values = list(zip(*state_values))
-	print(state_values)
-	print('{}x{}'.format(len(state_values), len(state_values[0])))
 		  
 	state_value_map = {}
 	for i, node in enumerate(G):
@@ -292,14 +288,11 @@ def make_continuous_mdp(G, R, inpd):
 
 	# now go back through the graph, for each node connecting it via an action
 	# to a successor node
-	print("training_set")
 	for node in G:
 		for index, succ in enumerate(G.successors(node)):
 			inp  = np.append(state_values[node], npr.random() * 2.0 - 1.0)
 			outp = state_values[succ]
 			training_set.addSample(inp, outp)
-			print(inp)
-			print(outp)
 
 	# finally, create a train a network
 	# hidden units:
@@ -309,9 +302,12 @@ def make_continuous_mdp(G, R, inpd):
 	#    4 * inpd = 7.5 seconds
 	nnet = pybrain.tools.shortcuts.buildNetwork(inpd + 1, 4 * inpd, inpd, bias=True)
 	trainer = pybrain.supervised.trainers.BackpropTrainer(nnet, training_set)
-	errors = trainer.trainEpochs(1000)
-	#errors = trainer.trainUntilConvergence()
-	# print("training_errors: " + errors)
+	#errors = trainer.trainEpochs(1000)
+	print('Training neural network on state dynamics...this may take a while...', file=sys.stderr)
+	errors = trainer.trainUntilConvergence(maxEpochs=2000)
+	print('done\n', file=sys.stderr)
+	
+	print("training_errors: " + errors)
 
 	print("output: ")
 	for point in training_set:
