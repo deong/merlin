@@ -306,8 +306,7 @@ def make_continuous_mdp(G, R, inpd):
 	print('Training neural network on state dynamics...this may take a while...', file=sys.stderr)
 	errors = trainer.trainUntilConvergence(maxEpochs=2000)
 	print('done\n', file=sys.stderr)
-	
-	print("training_errors: " + errors)
+	print("training_errors: " + str(errors))
 
 	print("output: ")
 	for point in training_set:
