@@ -125,6 +125,10 @@ def rgud(nodes, edges):
 	# generate a random directed multigraph with the specified degree
 	# sequences
 	tgraph = nx.directed_configuration_model(din, dout)
+
+	# now label each node with a number so we can refer to it later
+	# for i, node in enumerate(tgraph):
+	# 	tgraph.node[i]['node_num'] = i
 	return tgraph
 
 
@@ -207,24 +211,6 @@ def write_instance(G, R):
 
 
 
-# create a smooth "landscape" of real values on a mesh
-#
-# For the neural network-based continuous MDP generation, we need to associate
-# a real-value with each node in the network. Doing this completely randomly
-# results in a very rugged transition graph -- moving from one state to an
-# adjacent state often results in a very large jump in the real-valued state
-# space, which is both physically unrealistic for most applications, and also
-# very difficult for the network to learn to approximate.
-#
-# Instead, we want to generate a procedural "landscape" so that adjacent values
-# are roughly correlated.
-#
-# parameters:
-#   G: state transition graph
-#   
-def generate_landscape(G):
-	return
-
 # return a 1-D fractal landscape generated using the midpoint displacement method
 def make_fractal(n, ruggedness, rng=1.0, seed=0):
 	points = [npr.random(), npr.random()]
@@ -282,17 +268,33 @@ def make_continuous_mdp(G, R, inpd):
 		vals = make_fractal(num_points, 0.75)
 		state_values.append(vals)
 	state_values = list(zip(*state_values))
-		  
+	
+	# create a map from node to state vector	  
 	state_value_map = {}
 	for i, node in enumerate(G):
-		state_value_map[node] = state_values[i]
+	 	state_value_map[node] = state_values[i]
+
+	# create a list of actions for each node
+	action_value_map = {}
+	for node in G:
+		num_actions = len(G.successors(node))
+		step = 2.0 / num_actions
+		min_val = -1.0
+		max_val = min_val + step
+		for index, succ in enumerate(G.successors(node)):
+			# FIXME: customized for two actions
+			# action_value_map[(node, succ)] = npr.random() * 2.0 - 1.0
+			aval = npr.random() * (max_val - min_val) + min_val
+			action_value_map[(node, succ)] = aval
+			min_val += step
+			max_val += step
 
 	# now go back through the graph, for each node connecting it via an action
 	# to a successor node
 	for node in G:
 		for index, succ in enumerate(G.successors(node)):
-			inp  = np.append(state_values[node], npr.random() * 2.0 - 1.0)
-			outp = state_values[succ]
+			inp  = np.append(state_value_map[node], action_value_map[(node, succ)])
+			outp = state_value_map[succ]
 			training_set.addSample(inp, outp)
 
 	# finally, create a train a network
@@ -303,24 +305,44 @@ def make_continuous_mdp(G, R, inpd):
 	#    4 * inpd = 7.5 seconds
 	nnet = pybrain.tools.shortcuts.buildNetwork(inpd + 1, 4 * inpd, inpd, bias=True)
 	trainer = pybrain.supervised.trainers.BackpropTrainer(nnet, training_set)
-	#errors = trainer.trainEpochs(1000)
 	print('Training neural network on state dynamics...this may take a while...', file=sys.stderr)
 	errors = trainer.trainUntilConvergence(maxEpochs=2000)
-	print('done\n', file=sys.stderr)
-	print(type(errors).__name__)
-	print("training_errors: " + str(errors[0]))
-	mpl.plot(errors[0])
-	mpl.show()
 
-	print("output: ")
-	for point in training_set:
-		outp = nnet.activate(point[0])
+	# write an output file showing each training point, the target value, and the output value
+	dynfile = open('dynamics.dat', 'w')
+	for inp, target in training_set:
+		approx = nnet.activate(inp)
+		entry = inp.tolist() + target.tolist() + approx.tolist()
+		dynfile.write("{}\n".format(" ".join([str(x) for x in entry])))
+	dynfile.close()
 
-	return nnet
+	return (nnet, state_value_map, action_value_map)
 		
 
 
+# write the given graph and annotations out to a file suitable for graphing with graphviz
+def output_dot(G, state_values, action_values, outputfile):
+	f = open(outputfile, 'w')
+	f.write('digraph mdp {\n')
+	# f.write('rankdir=LR;\n')
+	# f.write('rotate=90;\n')
+	# print the nodes
+	for i in range(len(G.nodes())):
+		vals = [round(x, 3) for x in state_values[i]]
+		label = str(vals)
+		if i == 0:
+			f.write('{} [label=\"{}\", shape=box];\n'.format(i, label))
+		else:
+			f.write('{} [label=\"{}\"];\n'.format(i, label))
 
+	# and then the edges
+	for (orig, succ) in action_values.keys():
+		# vals = [round(x, 3) for x in action_values[(orig, succ)]]
+		# label = str(vals)
+		f.write('{} -> {} [label=\"{:.3f}\"];\n'.format(orig, succ, action_values[(orig, succ)]))
+
+	f.write('}\n')
+	f.close()
 										   
 #
 # Maze-type problems (gridworld)
@@ -491,7 +513,7 @@ def demo_rgud():
 					[-0.4,	0.6,  1.0]])
 	
 	nstates = 50
-	nactions = 2
+	nactions = 8
 	mu = [100.0] * 3
 	sigma = [10.0] * 3
 	cov = cor2cov(R, sigma)
@@ -548,8 +570,8 @@ if __name__ == '__main__':
 
 		# testing continuous mdp generation
 		G, G2, cc, cc2, rewards = demo_rgud()
-		nnet = make_continuous_mdp(G2, rewards, 2)
-		print(nnet)
+		(nnet, svm, avm) = make_continuous_mdp(G2, rewards, 2)
+		output_dot(G, svm, avm, 'discreteG.dot')
 		sys.exit(0)
 		# end testing
 		
