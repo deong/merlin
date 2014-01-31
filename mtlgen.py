@@ -265,7 +265,8 @@ def make_continuous_mdp(G, R, inpd):
 	num_points = len(G)
 	state_values = []
 	for d in range(inpd):
-		vals = make_fractal(num_points, 0.75)
+		# vals = make_fractal(num_points, 0.75)
+		vals = make_gaussian_walk(num_points, 1.0)
 		state_values.append(vals)
 	state_values = list(zip(*state_values))
 	
@@ -303,10 +304,11 @@ def make_continuous_mdp(G, R, inpd):
 	#    2 * inpd = 5+ minutes, some improvement
 	#    3 * inpd = 6 minutes, some improvement
 	#    4 * inpd = 7.5 seconds
-	nnet = pybrain.tools.shortcuts.buildNetwork(inpd + 1, 4 * inpd, inpd, bias=True)
+	nnet = pybrain.tools.shortcuts.buildNetwork(inpd + 1, 2 * inpd, inpd, bias=True)
 	trainer = pybrain.supervised.trainers.BackpropTrainer(nnet, training_set)
 	print('Training neural network on state dynamics...this may take a while...', file=sys.stderr)
-	errors = trainer.trainUntilConvergence(maxEpochs=2000)
+	errors = trainer.trainEpochs(2000)
+	#errors = trainer.trainUntilConvergence(maxEpochs=2000)
 
 	# write an output file showing each training point, the target value, and the output value
 	dynfile = open('dynamics.dat', 'w')
@@ -324,7 +326,7 @@ def make_continuous_mdp(G, R, inpd):
 def output_dot(G, state_values, action_values, outputfile):
 	f = open(outputfile, 'w')
 	f.write('digraph mdp {\n')
-	# f.write('rankdir=LR;\n')
+	f.write('rankdir=LR;\n')
 	# f.write('rotate=90;\n')
 	# print the nodes
 	for i in range(len(G.nodes())):
@@ -512,8 +514,8 @@ def demo_rgud():
 					[ 0.4,	1.0,  0.6],
 					[-0.4,	0.6,  1.0]])
 	
-	nstates = 50
-	nactions = 8
+	nstates = 20
+	nactions = 4
 	mu = [100.0] * 3
 	sigma = [10.0] * 3
 	cov = cor2cov(R, sigma)
