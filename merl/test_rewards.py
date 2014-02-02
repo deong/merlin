@@ -1,12 +1,15 @@
 #!/usr/bin/env python
 #
+# merl/test_graphs.py
+#
+# Copyright (c) 2014 Deon Garrett <deon@iiim.is>
+#
+# This file is part of merl, the generator for multitask environments
+# for reinforcement learners.
+#
 # Unit tests for the multi-task reinforcement learning problem generator
 #
 #
-# License:
-# 
-# Copyright 2012 Deon Garrett <deong@acm.org>
-# 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -18,16 +21,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
 
 import unittest
-import mtlgen as gen
-import math
+import merl.rewards as rewards
 import numpy as np
 import numpy.random as npr
 import numpy.testing as nptest
 import scipy.linalg as sla
 import scipy.stats as sst
-import networkx as nx
+
 
 class TestMVNRewards(unittest.TestCase):
 
@@ -40,8 +43,8 @@ class TestMVNRewards(unittest.TestCase):
         R = np.asarray([[ 1.0,  0.4, -0.4],
                         [ 0.4,  1.0,  0.6],
                         [-0.4,  0.6,  1.0]])
-        cov = gen.cor2cov(R, sigma)
-        D = gen.mvnrewards(numStates, numActions, mu, cov)
+        cov = rewards.cor2cov(R, sigma)
+        D = rewards.mvnrewards(numStates, numActions, mu, cov)
         self.checkCorrelations(R, D)
     
     # another basic test
@@ -53,8 +56,8 @@ class TestMVNRewards(unittest.TestCase):
         R = np.asarray([[ 1.0, -0.7, -0.5],
                         [-0.7,  1.0,  0.8],
                         [-0.5,  0.8,  1.0]])
-        cov = gen.cor2cov(R, sigma)
-        D = gen.mvnrewards(numStates, numActions, mu, cov)
+        cov = rewards.cor2cov(R, sigma)
+        D = rewards.mvnrewards(numStates, numActions, mu, cov)
         self.checkCorrelations(R, D)
     
     # moving to four tasks
@@ -67,8 +70,8 @@ class TestMVNRewards(unittest.TestCase):
                         [ 0.2,  1.0,  0.4,  0.0],
                         [-0.5,  0.4,  1.0,  0.6],
                         [ 0.0,  0.0,  0.6,  1.0]])
-        cov = gen.cor2cov(R, sigma)
-        D = gen.mvnrewards(numStates, numActions, mu, cov)
+        cov = rewards.cor2cov(R, sigma)
+        D = rewards.mvnrewards(numStates, numActions, mu, cov)
         self.checkCorrelations(R, D)
     
     # pick an invalid covariance matrix (not positive definite)
@@ -81,8 +84,8 @@ class TestMVNRewards(unittest.TestCase):
         R = np.asarray([[ 1.0, -0.7,  0.8],
                         [-0.7,  1.0,  0.9],
                         [ 0.8,  0.9,  1.0]])
-        cov = gen.cor2cov(R, sigma)
-        self.assertRaises(sla.LinAlgError, gen.mvnrewards, numStates, numActions, mu, R)
+        cov = rewards.cor2cov(R, sigma)
+        self.assertRaises(sla.LinAlgError, rewards.mvnrewards, numStates, numActions, mu, R)
         
 
     # note the number of digits of precision is taken as log10(0.2)
@@ -122,83 +125,7 @@ class TestMVNRewards(unittest.TestCase):
         return corr
 
 
-# Test cases for generating random transition graphs with uniform out-degree
-class TestRGUD(unittest.TestCase):
 
-    # test whether some random graphs have the correct number of outgoing
-    # edges for each node
-    def test_outdegree1(self):
-        numStates = 100
-        numActions = 4
-        G = gen.rgud(numStates, numActions)
-        for node in G:
-            succ = [y for (x,y) in G.edges() if x==node]
-            self.assertEqual(len(succ), numActions)
-    
-    def test_outdegree2(self):
-        numStates = 2000
-        numActions = 10
-        G = gen.rgud(numStates, numActions)
-        for node in G:
-            succ = [y for (x,y) in G.edges() if x==node]
-            self.assertEqual(len(succ), numActions)
-    
-    def test_outdegree3(self):
-        numStates = 200
-        numActions = 2
-        G = gen.rgud(numStates, numActions)
-        for node in G:
-            succ = [y for (x,y) in G.edges() if x==node]
-            self.assertEqual(len(succ), numActions)
-
-    # this one has way more edges than nodes, so there must be loads of
-    # redundant edges
-    def test_outdegree4(self):
-        numStates = 50
-        numActions = 1000
-        G = gen.rgud(numStates, numActions)
-        for node in G:
-            succ = [y for (x,y) in G.edges() if x==node]
-            self.assertEqual(len(succ), numActions)
-
-    # test whether some random graphs are strongly connected
-    def test_connectedness(self):
-        ntests = 50
-        nsuccess = 0
-        for test in range(ntests):
-            numStates = npr.randint(100, 5000)
-            numActions = npr.randint(2, 20)
-            G = gen.make_strongly_connected(gen.rgud(numStates, numActions))
-            if nx.number_strongly_connected_components(G) == 1:
-                nsuccess += 1
-        self.assertEqual(nsuccess, ntests)
-            
-
-# Test cases for maze generation
-class TestMultimaze1(unittest.TestCase):
-    def setUp(self):
-        self.R = np.asarray([[ 1.0,  0.4, -0.4],
-                             [ 0.4,  1.0,  0.6],
-                             [-0.4,  0.6,  1.0]])
-        self.mu = [100.0] * 3
-        self.sigma = [10.0] * 3
-        self.cov = gen.cor2cov(self.R, self.sigma)
-        self.maze = gen.make_multimaze(4, 4, 3)
-        self.goals = gen.maze_goal_states(self.maze, 3, self.mu, self.cov)
-
-    # make sure that each task has a positive goal state somewhere
-    def test_goals_exist(self):
-        tasks, rows, cols = self.goals.shape
-        for task in range(tasks):
-            # find the positive goal state for the current task
-            goal_loc = None
-            for row in range(rows):
-                for col in range(cols):
-                    if self.goals[task, row, col] > 0:
-                        goal_loc = gen.rowcol_to_index(self.maze, row, col)
-            self.assertTrue(goal_loc != None)
- 
 
 if __name__ == '__main__':
     unittest.main()
-
