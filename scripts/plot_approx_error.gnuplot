@@ -1,7 +1,7 @@
 #!/usr/bin/gnuplot
 
-# set terminal pdf
-# set output 'train_log.pdf'
+set terminal pdf
+set output 'train_log.pdf'
 
 set multiplot layout 3,1
 plot 'train_log.dat' using 5 with lines title 'V1 True', 'train_log.dat' using 8 with lines title 'V1 Approx'

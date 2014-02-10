@@ -1,8 +1,8 @@
-# merl/graphs.py
+# merlin/graphs.py
 #
 # Copyright (c) 2014 Deon Garrett <deon@iiim.is>
 #
-# This file is part of merl, the generator for multitask environments
+# This file is part of merlin, the generator for multitask environments
 # for reinforcement learners.
 #
 # This module defines functionality for generating different state
@@ -33,7 +33,7 @@ import pybrain.datasets
 import pybrain.tools.shortcuts
 import pybrain.supervised.trainers
 import matplotlib.pyplot as mpl
-import merl.values as values
+import merlin.values as values
 
 #
 # create a random graph with uniform out-degree
@@ -160,7 +160,7 @@ def make_strongly_connected(G):
 #   hidden_units: number of hidden units in the network
 #   training_log: the name of a file to write predicted dynamics to
 #   
-def make_continuous_mdp(G, R, inpd, hidden_units, training_log):
+def make_continuous_mdp(G, R, inpd, hidden_units):
 	# build up a training set for the neural network; input is each component
 	# of the current state vector + one action, and output is the components
 	# of the successive state vector
@@ -216,47 +216,22 @@ def make_continuous_mdp(G, R, inpd, hidden_units, training_log):
 	errors = trainer.trainEpochs(2000)
 	#errors = trainer.trainUntilConvergence(maxEpochs=2000)
 
-	# write an output file showing each training point, the target value, and the output value
-	if training_log:
-		dynfile = open(training_log, 'w')
-		for inp, target in training_set:
-			approx = nnet.activate(inp)
-			entry = inp.tolist() + target.tolist() + approx.tolist()
-			dynfile.write("{}\n".format(" ".join([str(x) for x in entry])))
-		dynfile.close()
-
-	return (nnet, state_value_map, action_value_map)
-		
+	return (nnet, training_set, state_value_map, action_value_map)
 
 
-# write the given graph and annotations out to a file suitable for graphing with graphviz
+
+# randomly change fuzz_factor percent of the weights of the given network
 #
 # parameters:
-#   G: the graph to output
-#   state_values: the values to annotate each node of the graph with
-#   action_values: the values to annotate each edge of the graph with
-#   outputfile: the name of the graphiz (dot) file to output to
+#   net: the trained network to fuzz
+#   frac: the percentage of weights to randomly change
+#   scale: the amount to change the selected weights by
 #   
-def output_dot(G, state_values, action_values, outputfile):
-	f = open(outputfile, 'w')
-	f.write('digraph mdp {\n')
-	f.write('rankdir=LR;\n')
-	# f.write('rotate=90;\n')
-	# print the nodes
-	for i in range(len(G.nodes())):
-		vals = [round(x, 3) for x in state_values[i]]
-		label = str(vals)
-		if i == 0:
-			f.write('{} [label=\"{}\", shape=box];\n'.format(i, label))
-		else:
-			f.write('{} [label=\"{}\"];\n'.format(i, label))
+def fuzz_neural_net(net, frac, scale):
+	weights = net.params
+	fweights = [x if npr.random() >= frac else npr.normal(x, scale) for x in weights]
+	net._setParameters(fweights)
+	return net
+	
 
-	# and then the edges
-	for (orig, succ) in action_values.keys():
-		# vals = [round(x, 3) for x in action_values[(orig, succ)]]
-		# label = str(vals)
-		f.write('{} -> {} [label=\"{:.3f}\"];\n'.format(orig, succ, action_values[(orig, succ)]))
 
-	f.write('}\n')
-	f.close()
-										   

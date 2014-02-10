@@ -1,8 +1,8 @@
-# merl/values.py
+# merlin/values.py
 #
 # Copyright (c) 2014 Deon Garrett <deon@iiim.is>
 #
-# This file is part of merl, the generator for multitask environments
+# This file is part of merlin, the generator for multitask environments
 # for reinforcement learners.
 #
 # This module defines functions for assigning state and action values

@@ -27,10 +27,10 @@ import argparse
 import ast
 import numpy as np
 import networkx as nx
-import merl.rewards as rwd
-import merl.graphs as grp
-import merl.gridworld as grd
-import merl.io as io
+import merlin.rewards as rwd
+import merlin.graphs as grp
+import merlin.gridworld as grd
+import merlin.io as io
 import cPickle
 
 def demo_rand_graph_uniform_degree():
@@ -66,21 +66,23 @@ def demo_maze():
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
-	parser.add_argument(	  "--demo",						 help="run with a sample set of parameters", action='store_true')
-	parser.add_argument("-t", "--type",		  default=None,	 help="problem instance type (required)", choices=["garnet", "randgraph", "maze", "nnet"])
-	parser.add_argument("-n", "--states",	  default=100,	 help="size of the state space", type=int)
-	parser.add_argument("-m", "--actions",	  default=4,	 help="number of available actions", type=int)
-	parser.add_argument("-k", "--tasks",	  default=2,	 help="number of concurrent tasks", type=int)
-	parser.add_argument("-c", "--correlation",				 help="task correlation matrix (in Python nested list form)")
-	parser.add_argument("-r", "--rmeans",                    help="mean values for each task reward (in python list form)")
-	parser.add_argument("-s", "--stdev",					 help="standard deviations of task rewards (in python list form)")
-	parser.add_argument("-x", "--rows",		  default=10,	 help="rows in random maze", type=int)
-	parser.add_argument("-y", "--cols",		  default=10,	 help="columns in random maze", type=int)
-	parser.add_argument("-d", "--dimensions", default=2,     help="dimensionality of the state vector", type=int)
-	parser.add_argument(      "--hidden",                    help="number of hidden units in the approximation network", type=int)
-	parser.add_argument(      "--write-dot",  default=False, help="write a dot file to visualize the transition dynamics", action="store_true")
-	parser.add_argument(      "--train-log",  default=False, help="write a log file of training data and predictions", action="store_true")
-	
+	parser.add_argument(	  '--demo',						 help='run with a sample set of parameters', action='store_true')
+	parser.add_argument('-t', '--type',		  default=None,	 help='problem instance type (required)', choices=['garnet', 'randgraph', 'maze', 'nnet', 'fuzzed'])
+	parser.add_argument('-n', '--states',	  default=100,	 help='size of the state space', type=int)
+	parser.add_argument('-m', '--actions',	  default=4,	 help='number of available actions', type=int)
+	parser.add_argument('-k', '--tasks',	  default=2,	 help='number of concurrent tasks', type=int)
+	parser.add_argument('-c', '--correlation',				 help='task correlation matrix (in Python nested list form)')
+	parser.add_argument('-r', '--rmeans',                    help='mean values for each task reward (in python list form)')
+	parser.add_argument('-s', '--stdev',					 help='standard deviations of task rewards (in python list form)')
+	parser.add_argument('-x', '--rows',		  default=10,	 help='rows in random maze', type=int)
+	parser.add_argument('-y', '--cols',		  default=10,	 help='columns in random maze', type=int)
+	parser.add_argument('-d', '--dimensions', default=2,     help='dimensionality of the state vector', type=int)
+	parser.add_argument(      '--hidden',                    help='number of hidden units in the approximation network', type=int)
+	parser.add_argument(      '--write-dot',  default=False, help='write a dot file to visualize the transition dynamics', action='store_true')
+	parser.add_argument(      '--train-log',  default=False, help='write a log file of training data and predictions', action='store_true')
+	parser.add_argument(      '--baseline',                  help='filename containing a trained dynamics network')
+	parser.add_argument(      '--fuzz-frac',  default=0.05,  help='fraction of network weights to alter', type=float)
+	parser.add_argument(      '--fuzz-scale', default=1.0,   help='amount to alter the chosen network weights by', type=float)
 	args = parser.parse_args()
 
 
@@ -93,8 +95,8 @@ if __name__ == '__main__':
 		
 		# testing random graphs
 		# G, G2, cc, cc2, rewards = demo_rand_graph_uniform_degree()
-		# print("{} components: {}".format(len(cc), cc))
-		# print("{} components: {}".format(len(cc2), cc2))
+		# print('{} components: {}'.format(len(cc), cc))
+		# print('{} components: {}'.format(len(cc2), cc2))
 		# sys.exit(0)
 		# end testing
 
@@ -133,53 +135,60 @@ if __name__ == '__main__':
 	# compute a covariance matrix from the correlation matrix and standard deviations
 	cov = rwd.cor2cov(args.correlation, args.stdev)
 		
-	if args.type == "randgraph":
+	if args.type == 'randgraph':
 		rewards = rwd.mvnrewards(args.states, args.actions, args.rmeans, cov)
 		transition_graph = grp.rand_graph_uniform_degree(args.states, args.actions)
 		io.write_instance(transition_graph, rewards)
-		print("# type={}, states={}, actions={}, correlation={}, stdev={}".
+		print('# type={}, states={}, actions={}, correlation={}, stdev={}'.
 			  format(args.type, args.states, args.actions, args.correlation.tolist(), args.stdev.tolist()))
 
-	elif args.type == "maze":
+	elif args.type == 'maze':
 		maze = grd.make_multimaze(args.rows, args.cols, args.tasks)
 		goals = grd.maze_goal_states(maze)
 		# transition_graph = maze_transition_graph(maze, goals)
 		# rewards = np.zeros([args.rows * args.cols, 4, args.tasks])
 		# write_instance(transition_graph, rewards)
 		io.write_maze_instance(maze, goals)
-		print("# type={}, rows={}, cols={}, correlation={}, stdev={}".
+		print('# type={}, rows={}, cols={}, correlation={}, stdev={}'.
 			  format(args.type, args.rows, args.col, args.correlation.tolist(), args.stdev.tolist()))
 
-	elif args.type == "garnet":
+	elif args.type == 'garnet':
 		# generate garnet problem
-		print("todo")
+		print('todo')
 		
-	elif args.type == "nnet":
-			rewards = rwd.mvnrewards(args.states, args.actions, args.rmeans, cov)
-			G = grp.rand_graph_uniform_degree(args.states, args.actions)
-			cc = nx.strongly_connected_components(G)
-			if len(cc) > 1:
-				G = grp.make_strongly_connected(G)
+	elif args.type == 'nnet':
+		rewards = rwd.mvnrewards(args.states, args.actions, args.rmeans, cov)
+		G = grp.rand_graph_uniform_degree(args.states, args.actions)
+		cc = nx.strongly_connected_components(G)
+		if len(cc) > 1:
+			G = grp.make_strongly_connected(G)
 
-			if args.train_log:
-				args.train_log = "train_log.dat"
+		if args.train_log:
+			args.train_log = 'train_log.dat'
 
-			hidden_units = (args.dimensions + 2) * (args.dimensions + 2)
-			if args.hidden:
-				hidden_units = int(args.hidden)
+		hidden_units = (args.dimensions + 2) * (args.dimensions + 2)
+		if args.hidden:
+			hidden_units = int(args.hidden)
 				
-			(nnet, svm, avm) = grp.make_continuous_mdp(G, rewards, args.dimensions, hidden_units, args.train_log)
-
-			# save the trained neural net
-			nnetFile = open("dynamics.net", "w")
-			cPickle.dump(nnet, nnetFile)
-			nnetFile.close()
+		(nnet, traindata, svm, avm) = grp.make_continuous_mdp(G, rewards, args.dimensions, hidden_units)
+		io.write_neural_net(nnet, traindata, 'dynamics.net')
+		io.write_train_log(nnet, traindata, args.train_log)
 			
-			if args.write_dot:
-				grp.output_dot(G, svm, avm, "transdyn.dot")
+		if args.write_dot:
+			io.output_dot(G, svm, avm, 'transdyn.dot')
+
+	elif args.type == 'fuzzed':
+		if not args.baseline:
+			parser.print_help()
+			sys.exit(1)
+		else:
+			(net, trainset) = io.read_neural_net(args.baseline)
+			net2 = grp.fuzz_neural_net(net, args.fuzz_frac, args.fuzz_scale)
+			io.write_neural_net(net2, trainset, 'fuzzed.net')
+			io.write_train_log(net2, trainset, 'train_log_fuzzed.dat')
 			
 	else:
-		print("invalid problem type specified: {}", args.type)
+		print('invalid problem type specified: {}', args.type)
 		parser.print_help()
 		sys.exit(1)
 		

@@ -1,8 +1,8 @@
-# merl/gridworld.py
+# merlin/gridworld.py
 #
 # Copyright (c) 2014 Deon Garrett <deon@iiim.is>
 #
-# This file is part of merl, the generator for multitask environments
+# This file is part of merlin, the generator for multitask environments
 # for reinforcement learners.
 #
 # This module contains functions related to generation of gridworld and

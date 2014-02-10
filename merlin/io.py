@@ -1,8 +1,8 @@
-# merl/io.py
+# merlin/io.py
 #
 # Copyright (c) 2014 Deon Garrett <deon@iiim.is>
 #
-# This file is part of merl, the generator for multitask environments
+# This file is part of merlin, the generator for multitask environments
 # for reinforcement learners.
 #
 # This module contains functions for reading and writing the generated
@@ -24,8 +24,9 @@
 
 from __future__ import print_function
 import random
-import merl.gridworld as grd
-from PIL import Image
+import merlin.gridworld as grd
+import cPickle
+#from PIL import Image
 
 
 # construct a new MDP given a set of rewards and a transition graph
@@ -109,24 +110,100 @@ def write_maze_instance(maze, goals):
 #   imgx: the horizontal size of the output file
 #   imgy: the vertical size of the output file
 #   
-def draw_multimaze(maze, imgx=600, imgy=600):
-    my = len(maze)
-    mx = len(maze[0])
-    
-    image = Image.new("RGB", (imgx, imgy))
-    pixels = image.load()
+# def draw_multimaze(maze, imgx=600, imgy=600):
+#     my = len(maze)
+#     mx = len(maze[0])
+#     
+#     image = Image.new("RGB", (imgx, imgy))
+#     pixels = image.load()
+# 
+#     # count number of distinct paths through the maze
+#     # note that this counts the walls; hence the -1 on the end
+#     m = len(set.union(*[set(row) for row in maze])) - 1
+#     
+#     color = [(0, 0, 0)] # RGB colors maze paths
+#     for i in range(m):
+#         color.append((random.randint(0, 255),
+#                       random.randint(0, 255),
+#                       random.randint(0, 255)))
+#         
+#     for ky in range(imgy):
+#         for kx in range(imgx):
+#             pixels[kx, ky] = color[maze[int(my * ky / imgy)][int(mx * kx / imgx)]]
+#     image.save(str(m) + "Maze_" + str(mx) + "x" + str(my) + ".png", "PNG")
 
-    # count number of distinct paths through the maze
-    # note that this counts the walls; hence the -1 on the end
-    m = len(set.union(*[set(row) for row in maze])) - 1
-    
-    color = [(0, 0, 0)] # RGB colors maze paths
-    for i in range(m):
-        color.append((random.randint(0, 255),
-                      random.randint(0, 255),
-                      random.randint(0, 255)))
-        
-    for ky in range(imgy):
-        for kx in range(imgx):
-            pixels[kx, ky] = color[maze[int(my * ky / imgy)][int(mx * kx / imgx)]]
-    image.save(str(m) + "Maze_" + str(mx) + "x" + str(my) + ".png", "PNG")
+
+
+# write out a trained pybrain neural network that can be read back in
+#
+# parameters:
+#   net: the neural net to save
+#   outf: the name of the file to write the network to
+#
+def write_neural_net(net, trainset, outf):
+	nnetFile = open(outf, 'wb')
+	cPickle.dump(net, nnetFile)
+	cPickle.dump(trainset, nnetFile)
+	nnetFile.close()
+
+
+# read back in a trained neural network and return it
+#
+# parameters:
+#   inf: the name of the input file to read
+#   
+def read_neural_net(inf):
+	nnetFile = open(inf, 'rb')
+	net = cPickle.load(nnetFile)
+	trainset = cPickle.load(nnetFile)
+	return (net, trainset)
+
+
+
+# write the dynamics of the trained network along with the "real" dynamics"
+#
+# parameters:
+#   nnet: a trained neural network predicting the transition dynamics
+#   training_set: a set of input/output pairs specifying the target dynamics
+#   outf: the name of a file to write the results to
+#   
+def write_train_log(nnet, training_set, outf):
+	dynfile = open(outf, 'w')
+	for inp, target in training_set:
+		approx = nnet.activate(inp)
+		entry = inp.tolist() + target.tolist() + approx.tolist()
+		dynfile.write("{}\n".format(" ".join([str(x) for x in entry])))
+	dynfile.close()
+		
+
+# write the given graph and annotations out to a file suitable for graphing with graphviz
+#
+# parameters:
+#   G: the graph to output
+#   state_values: the values to annotate each node of the graph with
+#   action_values: the values to annotate each edge of the graph with
+#   outputfile: the name of the graphiz (dot) file to output to
+#   
+def output_dot(G, state_values, action_values, outputfile):
+	f = open(outputfile, 'w')
+	f.write('digraph mdp {\n')
+	f.write('rankdir=LR;\n')
+	# f.write('rotate=90;\n')
+	# print the nodes
+	for i in range(len(G.nodes())):
+		vals = [round(x, 3) for x in state_values[i]]
+		label = str(vals)
+		if i == 0:
+			f.write('{} [label=\"{}\", shape=box];\n'.format(i, label))
+		else:
+			f.write('{} [label=\"{}\"];\n'.format(i, label))
+
+	# and then the edges
+	for (orig, succ) in action_values.keys():
+		# vals = [round(x, 3) for x in action_values[(orig, succ)]]
+		# label = str(vals)
+		f.write('{} -> {} [label=\"{:.3f}\"];\n'.format(orig, succ, action_values[(orig, succ)]))
+
+	f.write('}\n')
+	f.close()
+										   

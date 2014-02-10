@@ -1,8 +1,8 @@
-# merl/__init__.py
+# merlin/__init__.py
 #
 # Copyright (c) 2014 Deon Garrett <deon@iiim.is>
 #
-# This file is part of merl, the generator for multitask environments
+# This file is part of merlin, the generator for multitask environments
 # for reinforcement learners.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");

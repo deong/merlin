@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 #
-# merl/test_graphs.py
+# merlin/test_graphs.py
 #
 # Copyright (c) 2014 Deon Garrett <deon@iiim.is>
 #
-# This file is part of merl, the generator for multitask environments
+# This file is part of merlin, the generator for multitask environments
 # for reinforcement learners.
 #
 # Unit tests for the multi-task reinforcement learning problem generator
@@ -24,10 +24,10 @@
 #
 
 import unittest
-import merl.graphs as graphs
-import merl.rewards as rewards
-import merl.values as values
-import merl.gridworld as grid
+import merlin.graphs as graphs
+import merlin.rewards as rewards
+import merlin.values as values
+import merlin.gridworld as grid
 import math
 import numpy as np
 import numpy.random as npr

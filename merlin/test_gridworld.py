@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 #
-# merl/test_gridworld.py
+# merlin/test_gridworld.py
 #
 # Copyright (c) 2014 Deon Garrett <deon@iiim.is>
 #
-# This file is part of merl, the generator for multitask environments
+# This file is part of merlin, the generator for multitask environments
 # for reinforcement learners.
 #
 # Unit tests for the multi-task reinforcement learning problem generator
@@ -24,8 +24,8 @@
 #
 
 import unittest
-import merl.rewards as rewards
-import merl.gridworld as grid
+import merlin.rewards as rewards
+import merlin.gridworld as grid
 import numpy as np
 
 # Test cases for maze generation
