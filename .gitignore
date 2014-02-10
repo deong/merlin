@@ -4,3 +4,4 @@
 *.out
 *.asv
 *.pyc
+out/
