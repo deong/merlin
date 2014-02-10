@@ -46,7 +46,7 @@ class TestRGUD(unittest.TestCase):
     def test_outdegree1(self):
         numStates = 100
         numActions = 4
-        G = graphs.rgud(numStates, numActions)
+        G = graphs.rand_graph_uniform_degree(numStates, numActions)
         for node in G:
             succ = [y for (x,y) in G.edges() if x==node]
             self.assertEqual(len(succ), numActions)
@@ -54,7 +54,7 @@ class TestRGUD(unittest.TestCase):
     def test_outdegree2(self):
         numStates = 2000
         numActions = 10
-        G = graphs.rgud(numStates, numActions)
+        G = graphs.rand_graph_uniform_degree(numStates, numActions)
         for node in G:
             succ = [y for (x,y) in G.edges() if x==node]
             self.assertEqual(len(succ), numActions)
@@ -62,7 +62,7 @@ class TestRGUD(unittest.TestCase):
     def test_outdegree3(self):
         numStates = 200
         numActions = 2
-        G = graphs.rgud(numStates, numActions)
+        G = graphs.rand_graph_uniform_degree(numStates, numActions)
         for node in G:
             succ = [y for (x,y) in G.edges() if x==node]
             self.assertEqual(len(succ), numActions)
@@ -72,7 +72,7 @@ class TestRGUD(unittest.TestCase):
     def test_outdegree4(self):
         numStates = 50
         numActions = 1000
-        G = graphs.rgud(numStates, numActions)
+        G = graphs.rand_graph_uniform_degree(numStates, numActions)
         for node in G:
             succ = [y for (x,y) in G.edges() if x==node]
             self.assertEqual(len(succ), numActions)
@@ -84,7 +84,7 @@ class TestRGUD(unittest.TestCase):
         for test in range(ntests):
             numStates = npr.randint(100, 5000)
             numActions = npr.randint(2, 20)
-            G = graphs.make_strongly_connected(graphs.rgud(numStates, numActions))
+            G = graphs.make_strongly_connected(graphs.rand_graph_uniform_degree(numStates, numActions))
             if nx.number_strongly_connected_components(G) == 1:
                 nsuccess += 1
         self.assertEqual(nsuccess, ntests)

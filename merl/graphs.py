@@ -45,7 +45,7 @@ import merl.values as values
 #	a directed multigraph with each node having out-degree exactly
 #	equal to edges and in-degree > 0.
 #
-def rgud(nodes, edges):
+def rand_graph_uniform_degree(nodes, edges):
 	"""Create a random graph representing the transition graph for a
 	random MDP."""
 	# need din/dout -- degree sequences
@@ -157,8 +157,10 @@ def make_strongly_connected(G):
 #   G: state transition graph
 #   R: reward structure
 #   indim: number of state variables per state
+#   hidden_units: number of hidden units in the network
+#   training_log: the name of a file to write predicted dynamics to
 #   
-def make_continuous_mdp(G, R, inpd):
+def make_continuous_mdp(G, R, inpd, hidden_units, training_log):
 	# build up a training set for the neural network; input is each component
 	# of the current state vector + one action, and output is the components
 	# of the successive state vector
@@ -208,19 +210,20 @@ def make_continuous_mdp(G, R, inpd):
 	#    2 * inpd = 5+ minutes, some improvement
 	#    3 * inpd = 6 minutes, some improvement
 	#    4 * inpd = 7.5 seconds
-	nnet = pybrain.tools.shortcuts.buildNetwork(inpd + 1, 2 * inpd, inpd, bias=True)
+	nnet = pybrain.tools.shortcuts.buildNetwork(inpd + 1, hidden_units, inpd, bias=True)
 	trainer = pybrain.supervised.trainers.BackpropTrainer(nnet, training_set)
 	print('Training neural network on state dynamics...this may take a while...', file=sys.stderr)
 	errors = trainer.trainEpochs(2000)
 	#errors = trainer.trainUntilConvergence(maxEpochs=2000)
 
 	# write an output file showing each training point, the target value, and the output value
-	dynfile = open('dynamics.dat', 'w')
-	for inp, target in training_set:
-		approx = nnet.activate(inp)
-		entry = inp.tolist() + target.tolist() + approx.tolist()
-		dynfile.write("{}\n".format(" ".join([str(x) for x in entry])))
-	dynfile.close()
+	if training_log:
+		dynfile = open(training_log, 'w')
+		for inp, target in training_set:
+			approx = nnet.activate(inp)
+			entry = inp.tolist() + target.tolist() + approx.tolist()
+			dynfile.write("{}\n".format(" ".join([str(x) for x in entry])))
+		dynfile.close()
 
 	return (nnet, state_value_map, action_value_map)
 		
