@@ -31,6 +31,7 @@ import merlin.rewards as rwd
 import merlin.graphs as grp
 import merlin.gridworld as grd
 import merlin.io as io
+import merlin.values as values
 import cPickle
 
 def demo_rand_graph_uniform_degree():
@@ -86,7 +87,7 @@ if __name__ == '__main__':
 	args = parser.parse_args()
 
 
-	if args.demo:
+	# if args.demo:
 		# testing mazes
 		# (z, goals) = demo_maze()
 		# write_maze_instance(z, goals)
@@ -101,10 +102,10 @@ if __name__ == '__main__':
 		# end testing
 
 		# testing continuous mdp generation
-		G, G2, cc, cc2, rewards = demo_rand_graph_uniform_degree()
-		(nnet, svm, avm) = grp.make_continuous_mdp(G2, rewards, 2)
-		grp.output_dot(G, svm, avm, 'discreteG.dot')
-		sys.exit(0)
+		# G, G2, cc, cc2, rewards = demo_rand_graph_uniform_degree()
+		# (nnet, svm, avm) = grp.make_continuous_mdp(G2, rewards, 2)
+		# grp.output_dot(G, svm, avm, 'discreteG.dot')
+		# sys.exit(0)
 		# end testing
 		
 	
@@ -163,6 +164,9 @@ if __name__ == '__main__':
 		if len(cc) > 1:
 			G = grp.make_strongly_connected(G)
 
+		state_value_map = values.make_state_value_map(G, args.dimensions, 'fractal', 0.7)
+		action_value_map = values.make_action_value_map(G, (-1.0, 1.0))
+		
 		if args.train_log:
 			args.train_log = 'train_log.dat'
 
@@ -170,12 +174,12 @@ if __name__ == '__main__':
 		if args.hidden:
 			hidden_units = int(args.hidden)
 				
-		(nnet, traindata, svm, avm) = grp.make_continuous_mdp(G, rewards, args.dimensions, hidden_units)
+		(nnet, traindata) = grp.make_continuous_mdp(G, rewards, state_value_map, action_value_map, args.dimensions, hidden_units)
 		io.write_neural_net(nnet, traindata, 'dynamics.net')
 		io.write_train_log(nnet, traindata, args.train_log)
 			
 		if args.write_dot:
-			io.output_dot(G, svm, avm, 'transdyn.dot')
+			io.output_dot(G, state_value_map, action_value_map, 'transdyn.dot')
 
 	elif args.type == 'fuzzed':
 		if not args.baseline:

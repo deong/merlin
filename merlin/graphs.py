@@ -156,45 +156,17 @@ def make_strongly_connected(G):
 # parameters:
 #   G: state transition graph
 #   R: reward structure
+#   state_value_map: state vector assigned to each node
+#   action_value_map: action value assigned to each edge
 #   indim: number of state variables per state
 #   hidden_units: number of hidden units in the network
 #   training_log: the name of a file to write predicted dynamics to
 #   
-def make_continuous_mdp(G, R, inpd, hidden_units):
+def make_continuous_mdp(G, R, state_value_map, action_value_map, inpd, hidden_units):
 	# build up a training set for the neural network; input is each component
 	# of the current state vector + one action, and output is the components
 	# of the successive state vector
 	training_set = pybrain.datasets.SupervisedDataSet(inpd + 1, inpd)
-
-	# first, assign a random vector to each state/action pair in the graph
-	# using the fractal landscape method
-	num_points = len(G)
-	state_values = []
-	for d in range(inpd):
-		# vals = make_fractal(num_points, 0.75)
-		vals = values.make_gaussian_walk(num_points, 1.0)
-		state_values.append(vals)
-	state_values = list(zip(*state_values))
-	
-	# create a map from node to state vector	  
-	state_value_map = {}
-	for i, node in enumerate(G):
-	 	state_value_map[node] = state_values[i]
-
-	# create a list of actions for each node
-	action_value_map = {}
-	for node in G:
-		num_actions = len(G.successors(node))
-		step = 2.0 / num_actions
-		min_val = -1.0
-		max_val = min_val + step
-		for index, succ in enumerate(G.successors(node)):
-			# FIXME: customized for two actions
-			# action_value_map[(node, succ)] = npr.random() * 2.0 - 1.0
-			aval = npr.random() * (max_val - min_val) + min_val
-			action_value_map[(node, succ)] = aval
-			min_val += step
-			max_val += step
 
 	# now go back through the graph, for each node connecting it via an action
 	# to a successor node
@@ -216,7 +188,7 @@ def make_continuous_mdp(G, R, inpd, hidden_units):
 	errors = trainer.trainEpochs(2000)
 	#errors = trainer.trainUntilConvergence(maxEpochs=2000)
 
-	return (nnet, training_set, state_value_map, action_value_map)
+	return (nnet, training_set)
 
 
 

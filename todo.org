@@ -1,13 +1,33 @@
-#+TITLE: MTMDP Instance Generation
+#+TITLE: MERLIN Instance Generation
 
-* Problem Types 
-** DONE Random Graph-Correlated Rewards
-CLOSED: [2013-05-15 Wed 22:48]
-name: rgudcr
-** TODO Random Graph, variable degree
-name: rgvdcr
-** TODO Random Maze-Correlated Goal Locations
-name: rzcgl
-Mostly done, but the rewards aren't correlated correctly yet
-** TODO Random Graph-Correlated Discrete Rewards
-name: rguddr
+* TODO integrate correlated rewards into neural nets
+Generate and train a second neural network, this one predicting
+state+action->reward
+
+* TODO write tests for new code
+
+* TODO implement the garnet generator
+
+* TODO separate interfaces for transitions/rewards/states
+Need three separate parameters: (1) the type of transition dynamics to use, (2)
+the type of state-value function to use, and (3) the type of reward assignment
+to use. Should be able to mix and match them.
+
+* TODO assign state-values by random walks
+Currently state values are assigned by simply ordering the states from 1 to N.
+It would be better if the state values were assigned to the states in the order
+that states were encountered.
+** Possible implementation strategy
+1. Pick a start state and take a random walk along unvisited nodes. Record the
+   visited nodes in a list, and after no more steps can be made, generate a
+   landscape of length $k$, where $k$ is the length of the walk.
+2. Remove the $k$ visited nodes from the global node list
+3. Pick a new unvisited starting node and repeat the process until all nodes
+   have been visited.
+
+* TODO specify output files on the command line rather than hard coding them
+
+* TODO allow generation of more than one fuzzed network at a time
+Should pass a command line argument specifying the number of alternatives to
+generate, and a stem for the output file name. It should then write out that
+many files, stem01.net, stem02.net, etc.

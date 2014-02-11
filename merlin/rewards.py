@@ -25,6 +25,9 @@ from __future__ import print_function
 import numpy as np
 import numpy.random as npr
 import scipy.linalg as sla
+import pybrain.datasets
+import pybrain.tools.shortcuts
+import pybrain.supervised.trainers
 
 #
 # create random reward structure for an (nstates, nactions) MDP
@@ -66,3 +69,16 @@ def cor2cov(R, sigma):
 
 
 
+#
+# learn an approximation model for the given reward function
+#
+# parameters:
+#   G: the state transition graph
+#   svm: the state value map
+#   avm: the action value map
+#   rewards: an nxmxk matrix of state/action reward values
+# returns:
+#   a trained neural network 
+#
+def learn_reward_function(G, svm, avm, rewards):
+	training_set = pybrain.datasets.SupervisedDataSet(inpd + 1, inpd)
