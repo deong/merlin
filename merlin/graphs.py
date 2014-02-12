@@ -155,14 +155,13 @@ def make_strongly_connected(G):
 #
 # parameters:
 #   G: state transition graph
-#   R: reward structure
 #   state_value_map: state vector assigned to each node
 #   action_value_map: action value assigned to each edge
 #   indim: number of state variables per state
 #   hidden_units: number of hidden units in the network
 #   training_log: the name of a file to write predicted dynamics to
 #   
-def make_continuous_mdp(G, R, state_value_map, action_value_map, inpd, hidden_units):
+def make_continuous_mdp(G, state_value_map, action_value_map, inpd, hidden_units):
 	# build up a training set for the neural network; input is each component
 	# of the current state vector + one action, and output is the components
 	# of the successive state vector

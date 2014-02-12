@@ -80,5 +80,22 @@ def cor2cov(R, sigma):
 # returns:
 #   a trained neural network 
 #
-def learn_reward_function(G, svm, avm, rewards):
-	training_set = pybrain.datasets.SupervisedDataSet(inpd + 1, inpd)
+def learn_reward_function(G, inpd, svm, avm, rewards, hidden_units):
+	num_tasks = rewards.shape[2]
+	training_set = pybrain.datasets.SupervisedDataSet(inpd + 1, num_tasks)
+	
+	# for each node in the graph, map the state + action onto a reward
+	for state_index, node in G:
+		for action_index, succ in enumerate(G.successors(node)):
+			inp  = np.append(svm[node], avm[(node, succ)])
+			outp = rewards[state_index, action_index]
+			training_set.addSample(inp, outp)
+	
+	# finally, create a train a network
+	nnet = pybrain.tools.shortcuts.buildNetwork(inpd + 1, hidden_units, num_tasks, bias=True)
+	trainer = pybrain.supervised.trainers.BackpropTrainer(nnet, training_set)
+	print('Training neural network on reward function...this may take a while...', file=sys.stderr)
+	errors = trainer.trainEpochs(2000)
+	
+	return (nnet, training_set)
+	

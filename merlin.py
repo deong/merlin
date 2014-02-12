@@ -34,34 +34,34 @@ import merlin.io as io
 import merlin.values as values
 import cPickle
 
-def demo_rand_graph_uniform_degree():
-	R = np.asarray([[ 1.0,	0.4, -0.4],
-					[ 0.4,	1.0,  0.6],
-					[-0.4,	0.6,  1.0]])
-	
-	nstates = 20
-	nactions = 4
-	mu = [100.0] * 3
-	sigma = [10.0] * 3
-	cov = rwd.cor2cov(R, sigma)
-	rewards = rwd.mvnrewards(nstates, nactions, mu, cov)
-	G = grp.rand_graph_uniform_degree(nstates, nactions)
-	cc = nx.strongly_connected_components(G)
-	G2 = grp.make_strongly_connected(G)
-	cc2 = nx.strongly_connected_components(G2)
-	return (G, G2, cc, cc2, rewards)
-
-def demo_maze():
-	R = np.asarray([[ 1.0,	0.4, -0.4],
-					[ 0.4,	1.0,  0.6],
-					[-0.4,	0.6,  1.0]])
-	
-	mu = [100.0] * 3
-	sigma = [10.0] * 3
-	cov = rwd.cor2cov(R, sigma)
-	z = grd.make_multimaze(10, 10, 3)
-	goals = grd.maze_goal_states(z, 3, mu, cov)
-	return (z, goals)
+# def demo_rand_graph_uniform_degree():
+# 	R = np.asarray([[ 1.0,	0.4, -0.4],
+# 					[ 0.4,	1.0,  0.6],
+# 					[-0.4,	0.6,  1.0]])
+# 	
+# 	nstates = 20
+# 	nactions = 4
+# 	mu = [100.0] * 3
+# 	sigma = [10.0] * 3
+# 	cov = rwd.cor2cov(R, sigma)
+# 	rewards = rwd.mvnrewards(nstates, nactions, mu, cov)
+# 	G = grp.rand_graph_uniform_degree(nstates, nactions)
+# 	cc = nx.strongly_connected_components(G)
+# 	G2 = grp.make_strongly_connected(G)
+# 	cc2 = nx.strongly_connected_components(G2)
+# 	return (G, G2, cc, cc2, rewards)
+# 
+# def demo_maze():
+# 	R = np.asarray([[ 1.0,	0.4, -0.4],
+# 					[ 0.4,	1.0,  0.6],
+# 					[-0.4,	0.6,  1.0]])
+# 	
+# 	mu = [100.0] * 3
+# 	sigma = [10.0] * 3
+# 	cov = rwd.cor2cov(R, sigma)
+# 	z = grd.make_multimaze(10, 10, 3)
+# 	goals = grd.maze_goal_states(z, 3, mu, cov)
+# 	return (z, goals)
 
 
 
@@ -79,6 +79,7 @@ if __name__ == '__main__':
 	parser.add_argument('-y', '--cols',		  default=10,	 help='columns in random maze', type=int)
 	parser.add_argument('-d', '--dimensions', default=2,     help='dimensionality of the state vector', type=int)
 	parser.add_argument(      '--hidden',                    help='number of hidden units in the approximation network', type=int)
+	parser.add_argument(      '--rhidden',                   help='number of hidden units in the reward approximation network', type=int)
 	parser.add_argument(      '--write-dot',  default=False, help='write a dot file to visualize the transition dynamics', action='store_true')
 	parser.add_argument(      '--train-log',  default=False, help='write a log file of training data and predictions', action='store_true')
 	parser.add_argument(      '--baseline',                  help='filename containing a trained dynamics network')
@@ -158,7 +159,7 @@ if __name__ == '__main__':
 		print('todo')
 		
 	elif args.type == 'nnet':
-		rewards = rwd.mvnrewards(args.states, args.actions, args.rmeans, cov)
+		# generate the underlying graph for the transition dynamics
 		G = grp.rand_graph_uniform_degree(args.states, args.actions)
 		cc = nx.strongly_connected_components(G)
 		if len(cc) > 1:
@@ -174,10 +175,19 @@ if __name__ == '__main__':
 		if args.hidden:
 			hidden_units = int(args.hidden)
 				
-		(nnet, traindata) = grp.make_continuous_mdp(G, rewards, state_value_map, action_value_map, args.dimensions, hidden_units)
+		(nnet, traindata) = grp.make_continuous_mdp(G, state_value_map, action_value_map, args.dimensions, hidden_units)
 		io.write_neural_net(nnet, traindata, 'dynamics.net')
 		io.write_train_log(nnet, traindata, args.train_log)
-			
+
+		# generate the correlated rewards and a network predicting them
+		rewards = rwd.mvnrewards(args.states, args.actions, args.rmeans, cov)
+
+		if not args.rhidden:
+			args.rhidden = (args.dimensions + 2) * (args.tasks + 2)
+		(reward_net, reward_data) = rwd.learn_reward_function(G, args.dimensions, state_value_map, action_value_map, rewards, args.rhidden)
+		io.write_neural_net(reward_net, reward_data, 'rewards.net')
+		io.write_train_log(reward_net, reward_data, 'rewards.dat')
+		
 		if args.write_dot:
 			io.output_dot(G, state_value_map, action_value_map, 'transdyn.dot')
 
