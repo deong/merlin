@@ -32,6 +32,7 @@ import merlin.graphs as grp
 import merlin.gridworld as grd
 import merlin.io as io
 import merlin.values as values
+import merlin.net as net
 import cPickle
 
 # def demo_rand_graph_uniform_degree():
@@ -77,11 +78,19 @@ if __name__ == '__main__':
 	parser.add_argument('-s', '--stdev',					 help='standard deviations of task rewards (in python list form)')
 	parser.add_argument('-x', '--rows',		  default=10,	 help='rows in random maze', type=int)
 	parser.add_argument('-y', '--cols',		  default=10,	 help='columns in random maze', type=int)
+
+	# neural net parameters
 	parser.add_argument('-d', '--dimensions', default=2,     help='dimensionality of the state vector', type=int)
 	parser.add_argument(      '--hidden',                    help='number of hidden units in the approximation network', type=int)
 	parser.add_argument(      '--rhidden',                   help='number of hidden units in the reward approximation network', type=int)
-	parser.add_argument(      '--write-dot',  default=False, help='write a dot file to visualize the transition dynamics', action='store_true')
-	parser.add_argument(      '--train-log',  default=False, help='write a log file of training data and predictions', action='store_true')
+	parser.add_argument(      '--transitions-net',           help='file to save the transition dynamics network to')
+	parser.add_argument(      '--rewards-net',               help='file to save the rewards network to')
+	parser.add_argument(      '--transitions-dot',           help='name of the file to write the transition dynamics to in dot format')
+	parser.add_argument(      '--transitions-log',           help='name of the file to write training data and predictions to')
+	parser.add_argument(      '--rewards-log',               help='name of the file to write reward network training log to')
+	parser.add_argument(      '--max-epochs', default=2000,  help='maximum number of training epochs for the networks', type=int)
+
+	# fuzzed neural net arguments
 	parser.add_argument(      '--baseline',                  help='filename containing a trained dynamics network')
 	parser.add_argument(      '--fuzz-frac',  default=0.05,  help='fraction of network weights to alter', type=float)
 	parser.add_argument(      '--fuzz-scale', default=1.0,   help='amount to alter the chosen network weights by', type=float)
@@ -136,6 +145,9 @@ if __name__ == '__main__':
 		
 	# compute a covariance matrix from the correlation matrix and standard deviations
 	cov = rwd.cor2cov(args.correlation, args.stdev)
+	if not rwd.is_pos_def(cov):
+		print('Error: covariance matrix must be positive definite', file=sys.stderr)
+		sys.exit(1)
 		
 	if args.type == 'randgraph':
 		rewards = rwd.mvnrewards(args.states, args.actions, args.rmeans, cov)
@@ -159,6 +171,11 @@ if __name__ == '__main__':
 		print('todo')
 		
 	elif args.type == 'nnet':
+		if not args.transitions_net:
+			args.transitions_net = 'dynamics.net'
+		if not args.rewards_net:
+			args.rewards_net = 'rewards.net'
+			
 		# generate the underlying graph for the transition dynamics
 		G = grp.rand_graph_uniform_degree(args.states, args.actions)
 		cc = nx.strongly_connected_components(G)
@@ -168,17 +185,15 @@ if __name__ == '__main__':
 		state_value_map = values.make_state_value_map(G, args.dimensions, 'fractal', 0.7)
 		action_value_map = values.make_action_value_map(G, (-1.0, 1.0))
 		
-		if args.train_log:
-			args.train_log = 'train_log.dat'
-
 		hidden_units = (args.dimensions + 2) * (args.dimensions + 2)
 		if args.hidden:
 			hidden_units = int(args.hidden)
 
 		print('Training neural network on state dynamics...this may take a while...', file=sys.stderr)
-		(nnet, traindata) = grp.make_continuous_mdp(G, state_value_map, action_value_map, args.dimensions, hidden_units)
-		io.write_neural_net(nnet, traindata, 'dynamics.net')
-		io.write_train_log(nnet, traindata, args.train_log)
+		(nnet, traindata) = grp.make_continuous_mdp(G, state_value_map, action_value_map, args.dimensions, hidden_units, args.max_epochs)
+		io.write_neural_net(nnet, traindata, args.transitions_net)
+		if args.transitions_log:
+			io.write_train_log(nnet, traindata, args.transitions_log)
 
 		# generate the correlated rewards and a network predicting them
 		rewards = rwd.mvnrewards(args.states, args.actions, args.rmeans, cov)
@@ -187,12 +202,13 @@ if __name__ == '__main__':
 			args.rhidden = (args.dimensions + 2) * (args.tasks + 2)
 
 		print('Training neural network on reward function...this may take a while...', file=sys.stderr)
-		(reward_net, reward_data) = rwd.learn_reward_function(G, args.dimensions, state_value_map, action_value_map, rewards, args.rhidden)
-		io.write_neural_net(reward_net, reward_data, 'rewards.net')
-		io.write_train_log(reward_net, reward_data, 'rewards.dat')
+		(reward_net, reward_data) = rwd.learn_reward_function(G, args.dimensions, state_value_map, action_value_map, rewards, args.rhidden, args.max_epochs)
+		io.write_neural_net(reward_net, reward_data, args.rewards_net)
+		if args.rewards_log:
+			io.write_train_log(reward_net, reward_data, args.rewards_log)
 		
-		if args.write_dot:
-			io.output_dot(G, state_value_map, action_value_map, 'transdyn.dot')
+		if args.transitions_dot:
+			io.output_dot(G, state_value_map, action_value_map, args.transitions_dot)
 
 	elif args.type == 'fuzzed':
 		if not args.baseline:
@@ -200,7 +216,7 @@ if __name__ == '__main__':
 			sys.exit(1)
 		else:
 			(net, trainset) = io.read_neural_net(args.baseline)
-			net2 = grp.fuzz_neural_net(net, args.fuzz_frac, args.fuzz_scale)
+			net2 = net.fuzz_neural_net(net, args.fuzz_frac, args.fuzz_scale)
 			io.write_neural_net(net2, trainset, 'fuzzed.net')
 			io.write_train_log(net2, trainset, 'train_log_fuzzed.dat')
 			

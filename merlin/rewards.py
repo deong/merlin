@@ -70,6 +70,21 @@ def cor2cov(R, sigma):
 
 
 #
+# check if a given matrix is positive definite
+#
+# parameters:
+#   A: an nxn matrix
+# returns:
+#   True if A is positive definite, false otherwise
+#
+def is_pos_def(A):
+	try:
+		sla.cholesky(A)
+	except sla.LinAlgError:
+		return False
+	return True
+
+#
 # learn an approximation model for the given reward function
 #
 # parameters:
@@ -77,10 +92,11 @@ def cor2cov(R, sigma):
 #   svm: the state value map
 #   avm: the action value map
 #   rewards: an nxmxk matrix of state/action reward values
+#   max_epochs: maximum number of training epochs for the networks
 # returns:
 #   a trained neural network 
 #
-def learn_reward_function(G, inpd, svm, avm, rewards, hidden_units):
+def learn_reward_function(G, inpd, svm, avm, rewards, hidden_units, max_epochs):
 	num_tasks = rewards.shape[2]
 	training_set = pybrain.datasets.SupervisedDataSet(inpd + 1, num_tasks)
 	
@@ -94,7 +110,7 @@ def learn_reward_function(G, inpd, svm, avm, rewards, hidden_units):
 	# finally, create a train a network
 	nnet = pybrain.tools.shortcuts.buildNetwork(inpd + 1, hidden_units, num_tasks, bias=True)
 	trainer = pybrain.supervised.trainers.BackpropTrainer(nnet, training_set)
-	errors = trainer.trainEpochs(2000)
+	errors = trainer.trainUntilConvergence(maxEpochs=max_epochs)
 	
 	return (nnet, training_set)
 	

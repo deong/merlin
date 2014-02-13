@@ -1,6 +1,7 @@
 #+TITLE: MERLIN Instance Generation
 
-* TODO integrate correlated rewards into neural nets
+* DONE integrate correlated rewards into neural nets
+CLOSED: [2014-02-13 Thu 11:53]
 Generate and train a second neural network, this one predicting
 state+action->reward
 
@@ -25,9 +26,12 @@ that states were encountered.
 3. Pick a new unvisited starting node and repeat the process until all nodes
    have been visited.
 
-* TODO specify output files on the command line rather than hard coding them
+* DONE specify output files on the command line rather than hard coding them
+CLOSED: [2014-02-13 Thu 16:03]
 
 * TODO allow generation of more than one fuzzed network at a time
 Should pass a command line argument specifying the number of alternatives to
 generate, and a stem for the output file name. It should then write out that
 many files, stem01.net, stem02.net, etc.
+
+* TODO change other problem types to specify an output file instead of stdout

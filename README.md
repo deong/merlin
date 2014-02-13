@@ -1,7 +1,7 @@
-mtlgen
+MERLIN
 ========
 
-Random problem generator for multi-task reinforcement learning problems.
+MERLIN is the Multi-task Environments for Reinforcement LearnINg generator.
 
 ## Building
 

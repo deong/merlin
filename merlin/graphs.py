@@ -159,9 +159,9 @@ def make_strongly_connected(G):
 #   action_value_map: action value assigned to each edge
 #   indim: number of state variables per state
 #   hidden_units: number of hidden units in the network
-#   training_log: the name of a file to write predicted dynamics to
+#   max_epochs: maximum number of training epochs for the network
 #   
-def make_continuous_mdp(G, state_value_map, action_value_map, inpd, hidden_units):
+def make_continuous_mdp(G, state_value_map, action_value_map, inpd, hidden_units, max_epochs):
 	# build up a training set for the neural network; input is each component
 	# of the current state vector + one action, and output is the components
 	# of the successive state vector
@@ -176,32 +176,11 @@ def make_continuous_mdp(G, state_value_map, action_value_map, inpd, hidden_units
 			training_set.addSample(inp, outp)
 
 	# finally, create a train a network
-	# hidden units:
-	#    1 * inpd = very fast, not much improvement
-	#    2 * inpd = 5+ minutes, some improvement
-	#    3 * inpd = 6 minutes, some improvement
-	#    4 * inpd = 7.5 seconds
 	nnet = pybrain.tools.shortcuts.buildNetwork(inpd + 1, hidden_units, inpd, bias=True)
 	trainer = pybrain.supervised.trainers.BackpropTrainer(nnet, training_set)
-	errors = trainer.trainEpochs(2000)
-	#errors = trainer.trainUntilConvergence(maxEpochs=2000)
+	errors = trainer.trainUntilConvergence(maxEpochs=max_epochs)
 
 	return (nnet, training_set)
 
-
-
-# randomly change fuzz_factor percent of the weights of the given network
-#
-# parameters:
-#   net: the trained network to fuzz
-#   frac: the percentage of weights to randomly change
-#   scale: the amount to change the selected weights by
-#   
-def fuzz_neural_net(net, frac, scale):
-	weights = net.params
-	fweights = [x if npr.random() >= frac else npr.normal(x, scale) for x in weights]
-	net._setParameters(fweights)
-	return net
-	
 
 

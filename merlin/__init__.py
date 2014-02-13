@@ -24,4 +24,4 @@ import scipy.linalg as sla
 import numpy.random as npr
 import networkx as nx
 
-__all__ = ['graphs', 'values', 'rewards', 'gridworld', 'io']
+__all__ = ['graphs', 'gridworld', 'io', 'net', 'rewards', 'values']
