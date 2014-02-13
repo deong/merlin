@@ -183,7 +183,6 @@ def make_continuous_mdp(G, state_value_map, action_value_map, inpd, hidden_units
 	#    4 * inpd = 7.5 seconds
 	nnet = pybrain.tools.shortcuts.buildNetwork(inpd + 1, hidden_units, inpd, bias=True)
 	trainer = pybrain.supervised.trainers.BackpropTrainer(nnet, training_set)
-	print('Training neural network on state dynamics...this may take a while...', file=sys.stderr)
 	errors = trainer.trainEpochs(2000)
 	#errors = trainer.trainUntilConvergence(maxEpochs=2000)
 

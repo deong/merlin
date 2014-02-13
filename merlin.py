@@ -174,7 +174,8 @@ if __name__ == '__main__':
 		hidden_units = (args.dimensions + 2) * (args.dimensions + 2)
 		if args.hidden:
 			hidden_units = int(args.hidden)
-				
+
+		print('Training neural network on state dynamics...this may take a while...', file=sys.stderr)
 		(nnet, traindata) = grp.make_continuous_mdp(G, state_value_map, action_value_map, args.dimensions, hidden_units)
 		io.write_neural_net(nnet, traindata, 'dynamics.net')
 		io.write_train_log(nnet, traindata, args.train_log)
@@ -184,6 +185,8 @@ if __name__ == '__main__':
 
 		if not args.rhidden:
 			args.rhidden = (args.dimensions + 2) * (args.tasks + 2)
+
+		print('Training neural network on reward function...this may take a while...', file=sys.stderr)
 		(reward_net, reward_data) = rwd.learn_reward_function(G, args.dimensions, state_value_map, action_value_map, rewards, args.rhidden)
 		io.write_neural_net(reward_net, reward_data, 'rewards.net')
 		io.write_train_log(reward_net, reward_data, 'rewards.dat')
