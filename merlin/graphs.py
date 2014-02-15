@@ -34,6 +34,7 @@ import pybrain.tools.shortcuts
 import pybrain.supervised.trainers
 import matplotlib.pyplot as mpl
 import merlin.values as values
+import sklearn.svm as svm
 
 #
 # create a random graph with uniform out-degree
@@ -183,3 +184,16 @@ def make_continuous_mdp(G, inpd, hidden_units, max_epochs):
 
 
 
+# build an SVM regression model with the given training data
+# 
+def build_regression_model(G, state_var, C=1.0, epsilon=0.1):
+	model = svm.SVR()
+	xs = []
+	ys = []
+	for node in G:
+		for succ in G.successors(node):
+			xs.append(list(G.node[node]['state']) + [G.edge[node][succ]['action']])
+			ys.append(G.node[succ]['state'][state_var])
+	xs = np.asarray(xs)
+	ys = np.asarray(ys)
+	return (model.fit(xs, ys), (xs, ys))

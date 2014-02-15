@@ -23,6 +23,7 @@
 #
 
 from __future__ import print_function
+import numpy as np
 import numpy.random as npr
 
 
@@ -88,7 +89,7 @@ def gen_state_action_pairs(G):
 	p = []
 	for node in G:
 		for succ in G.successors(node):
-			p.append((G.node[node]['state'], G.edge[node][succ]['action']))
+			p.append((np.asarray(G.node[node]['state']), G.edge[node][succ]['action']))
 	return p
 
 

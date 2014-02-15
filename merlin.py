@@ -226,27 +226,28 @@ if __name__ == '__main__':
 			io.write_neural_net(net2, trainset, 'fuzzed.net')
 			io.write_train_log(net2, trainset, 'train_log_fuzzed.dat')
 
-	# elif args.type == 'svm':
-	# 	# generate the underlying graph for the transition dynamics
-	# 	G = grp.rand_graph_uniform_degree(args.states, args.actions)
-	# 	cc = nx.strongly_connected_components(G)
-	# 	if len(cc) > 1:
-	# 		G = grp.make_strongly_connected(G)
-	# 
-	# 	values.annotate_states(G, args.dimensions, 'fractal', 0.7)
-	# 	values.annotate_actions(G, (-2.0, 2.0))
-	# 	
-	# 	# generate the correlated rewards and a network predicting them
-	# 	rewards = rwd.mvnrewards(args.states, args.actions, args.rmeans, cov)
-	# 	rwd.annotate_rewards(G, rewards)
-	# 
-	# 	models = []
-	# 	for task in range(args.tasks):
-	# 		print('building regression model for S_{}...'.format(task))
-	# 		s_a_pairs = values.gen_state_action_pairs(G)
-	# 		training_data = [list(s) + [a] + [s[task]] for s, a in s_a_pairs]
-	# 		model = grp.build_regression_model(training_data, args.svm_C, args.svm_epsilon)
-	# 		models.append(model)
+	elif args.type == 'svm':
+		# generate the underlying graph for the transition dynamics
+		G = grp.rand_graph_uniform_degree(args.states, args.actions)
+		cc = nx.strongly_connected_components(G)
+		if len(cc) > 1:
+			G = grp.make_strongly_connected(G)
+	
+		values.annotate_states(G, args.dimensions, 'fractal', 0.7)
+		values.annotate_actions(G, (-2.0, 2.0))
+		
+		# generate the correlated rewards and a network predicting them
+		rewards = rwd.mvnrewards(args.states, args.actions, args.rmeans, cov)
+		rwd.annotate_rewards(G, rewards)
+	
+		models = []
+		training_sets = []
+		for task in range(args.tasks):
+			print('building regression model for S_{}...'.format(task))
+			model, training_data = grp.build_regression_model(G, task, args.svm_C, args.svm_epsilon)
+			models.append(model)
+			training_sets.append(training_data)
+		io.write_svm_train_log(models, training_sets, 'svm_train.log')
 		
 	else:
 		print('invalid problem type specified: {}', args.type)

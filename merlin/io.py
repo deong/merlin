@@ -176,6 +176,29 @@ def write_train_log(nnet, training_set, outf):
 	dynfile.close()
 		
 
+
+# write the dynamics of the trained network along with the "real" dynamics"
+#
+# parameters:
+#   nnet: a trained neural network predicting the transition dynamics
+#   training_set: a set of input/output pairs specifying the target dynamics
+#   outf: the name of a file to write the results to
+#   
+def write_svm_train_log(models, training_sets, outf):
+	dynfile = open(outf, 'w')
+	for inp, target in training_sets:
+		for i in range(len(inp)):
+			approx = []
+			targets = []
+			for task in range(len(models)):
+				approx.append(models[task].predict(inp[i])[0])
+				targets.append(target[i])
+			entry = inp[i].tolist() + targets + approx
+			dynfile.write("{}\n".format(" ".join([str(x) for x in entry])))
+	dynfile.close()
+		
+
+
 # write the given graph and annotations out to a file suitable for graphing with graphviz
 #
 # parameters:
