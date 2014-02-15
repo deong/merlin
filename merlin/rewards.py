@@ -89,28 +89,43 @@ def is_pos_def(A):
 #
 # parameters:
 #   G: the state transition graph
-#   svm: the state value map
-#   avm: the action value map
 #   rewards: an nxmxk matrix of state/action reward values
 #   max_epochs: maximum number of training epochs for the networks
 # returns:
 #   a trained neural network 
 #
-def learn_reward_function(G, inpd, svm, avm, rewards, hidden_units, max_epochs):
-	num_tasks = rewards.shape[2]
-	training_set = pybrain.datasets.SupervisedDataSet(inpd + 1, num_tasks)
+def learn_reward_function(G, hidden_units, max_epochs):
+	# grab any node and use it to find the dimensionality of the state space
+	dim = len(G.node[0]['state'])
+	
+	# grab any edge and use it to find the dimensionality of the reward space
+	(src, dest) = G.edges()[0]
+	num_tasks = len(G.edge[src][dest]['reward'])
+	
+	training_set = pybrain.datasets.SupervisedDataSet(dim + 1, num_tasks)
 	
 	# for each node in the graph, map the state + action onto a reward
 	for state_index, node in enumerate(G):
+		s = G.node[node]['state']
 		for action_index, succ in enumerate(G.successors(node)):
-			inp  = np.append(svm[node], avm[(node, succ)])
-			outp = rewards[state_index, action_index]
-			training_set.addSample(inp, outp)
+			a = G.edge[node][succ]['action']
+			training_set.addSample(np.append(s, a), G.edge[node][succ]['reward'])
 	
 	# finally, create a train a network
-	nnet = pybrain.tools.shortcuts.buildNetwork(inpd + 1, hidden_units, num_tasks, bias=True)
+	nnet = pybrain.tools.shortcuts.buildNetwork(dim + 1, hidden_units, num_tasks, bias=True)
 	trainer = pybrain.supervised.trainers.BackpropTrainer(nnet, training_set)
 	errors = trainer.trainUntilConvergence(maxEpochs=max_epochs)
 	
 	return (nnet, training_set)
 	
+
+# write the reward information directly into the graph as an annotation on the edges
+#
+# parameters:
+#   G: the transition graph
+#   rewards: an nxm matrix of rewards, one for each state-action pair
+#   
+def annotate_rewards(G, rewards):
+	for i, node in enumerate(G):
+		for j, succ in enumerate(G.successors(node)):
+			G.edge[node][succ]['reward'] = rewards[i,j]

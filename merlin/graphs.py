@@ -155,13 +155,11 @@ def make_strongly_connected(G):
 #
 # parameters:
 #   G: state transition graph
-#   state_value_map: state vector assigned to each node
-#   action_value_map: action value assigned to each edge
 #   indim: number of state variables per state
 #   hidden_units: number of hidden units in the network
 #   max_epochs: maximum number of training epochs for the network
 #   
-def make_continuous_mdp(G, state_value_map, action_value_map, inpd, hidden_units, max_epochs):
+def make_continuous_mdp(G, inpd, hidden_units, max_epochs):
 	# build up a training set for the neural network; input is each component
 	# of the current state vector + one action, and output is the components
 	# of the successive state vector
@@ -170,10 +168,11 @@ def make_continuous_mdp(G, state_value_map, action_value_map, inpd, hidden_units
 	# now go back through the graph, for each node connecting it via an action
 	# to a successor node
 	for node in G:
+		s = G.node[node]['state']
 		for index, succ in enumerate(G.successors(node)):
-			inp  = np.append(state_value_map[node], action_value_map[(node, succ)])
-			outp = state_value_map[succ]
-			training_set.addSample(inp, outp)
+			a = G.edge[node][succ]['action']
+			sp = G.node[succ]['state']
+			training_set.addSample(np.append(s, a), sp)
 
 	# finally, create a train a network
 	nnet = pybrain.tools.shortcuts.buildNetwork(inpd + 1, hidden_units, inpd, bias=True)

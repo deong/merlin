@@ -26,36 +26,32 @@ from __future__ import print_function
 import numpy.random as npr
 
 
-# map a real-valued state vector onto each node in the given transition graph
+# annotate the given graph with state values for each node
 #
 # parameters:
 #   G: the state transition graph
-#   inpd: the desired dimensionality of the state space
-#   func_type: the type of landscape to generate {"fractal", "gaussian"}
-#   ruggedness: a parameter governing the ruggedness of the graph
-def make_state_value_map(G, inpd, func_type, ruggedness):
+#   inpd: the desired dimension of the state space
+#   func_type: which type of landscape to generate {'fractal' or 'gaussian')
+#   ruggedness: parameter governing how  chaotic the changes are
+#   
+def annotate_states(G, inpd, func_type, ruggedness):
 	if func_type == 'fractal':
 		func = make_fractal
 	elif func_type == 'gaussian':
 		func = make_gaussian_walk
 	else:
 		raise RuntimeError('illegal state-value function type "{}" given'.format(func_type))
-	
-	# first, assign a random vector to each state/action pair in the graph
-	# using the fractal landscape method
+
 	num_points = len(G)
 	state_values = []
 	for d in range(inpd):
 		vals = func(num_points, ruggedness)
 		state_values.append(vals)
 	state_values = list(zip(*state_values))
-	
-	# create a map from node to state vector	  
-	state_value_map = {}
-	for i, node in enumerate(G):
-	 	state_value_map[node] = state_values[i]
 
-	return state_value_map
+	for index, node in enumerate(G):
+		G.node[node]['state'] = state_values[index]
+
 
 
 # map a real-valued action value onto each edge in the given transition graph
@@ -67,23 +63,34 @@ def make_state_value_map(G, inpd, func_type, ruggedness):
 # parameters:
 #   G: the state transition graph
 #   action_range: a tuple of (min, max) for action values
-# returns:
-#   the map of actions to action values
 #   
-def make_action_value_map(G, action_range):
-	# create a list of actions for each node
-	action_value_map = {}
+def annotate_actions(G, action_range):
 	for node in G:
 		num_actions = len(G.successors(node))
-		step = (action_range[1] - action_range[0])/2.0
+		step = (action_range[1] - action_range[0])/float(num_actions)
 		min_val = action_range[0]
 		max_val = min_val + step
 		for index, succ in enumerate(G.successors(node)):
 			aval = npr.random() * (max_val - min_val) + min_val
-			action_value_map[(node, succ)] = aval
+			G.edge[node][succ]['action'] = aval
 			min_val += step
 			max_val += step
-	return action_value_map
+
+
+
+# walk the graph and generate all state/action pairs
+#
+# parameters:
+#   G: the annotated state-transition graph
+# returns:
+#   a list of state-action tuples
+def gen_state_action_pairs(G):
+	p = []
+	for node in G:
+		for succ in G.successors(node):
+			p.append((G.node[node]['state'], G.edge[node][succ]['action']))
+	return p
+
 
 
 

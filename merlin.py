@@ -69,7 +69,7 @@ import cPickle
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	parser.add_argument(	  '--demo',						 help='run with a sample set of parameters', action='store_true')
-	parser.add_argument('-t', '--type',		  default=None,	 help='problem instance type (required)', choices=['garnet', 'randgraph', 'maze', 'nnet', 'fuzzed'])
+	parser.add_argument('-t', '--type',		  default=None,	 help='problem instance type (required)', choices=['garnet', 'randgraph', 'maze', 'nnet', 'fuzzed', 'svm'])
 	parser.add_argument('-n', '--states',	  default=100,	 help='size of the state space', type=int)
 	parser.add_argument('-m', '--actions',	  default=4,	 help='number of available actions', type=int)
 	parser.add_argument('-k', '--tasks',	  default=2,	 help='number of concurrent tasks', type=int)
@@ -94,6 +94,11 @@ if __name__ == '__main__':
 	parser.add_argument(      '--baseline',                  help='filename containing a trained dynamics network')
 	parser.add_argument(      '--fuzz-frac',  default=0.05,  help='fraction of network weights to alter', type=float)
 	parser.add_argument(      '--fuzz-scale', default=1.0,   help='amount to alter the chosen network weights by', type=float)
+
+	# svm-regression parameters
+	parser.add_argument(      '--svm-C',      default=1.0,   help='penalty parameter for the SVM error term', type=float)
+	parser.add_argument(      '--svm-epsilon',default=0.1,   help='tolerance within which no error is applied', type=float)
+	
 	args = parser.parse_args()
 
 
@@ -182,33 +187,34 @@ if __name__ == '__main__':
 		if len(cc) > 1:
 			G = grp.make_strongly_connected(G)
 
-		state_value_map = values.make_state_value_map(G, args.dimensions, 'fractal', 0.7)
-		action_value_map = values.make_action_value_map(G, (-1.0, 1.0))
+		values.annotate_states(G, args.dimensions, 'fractal', 0.7)
+		values.annotate_actions(G, (-2.0, 2.0))
 		
 		hidden_units = (args.dimensions + 2) * (args.dimensions + 2)
 		if args.hidden:
 			hidden_units = int(args.hidden)
 
 		print('Training neural network on state dynamics...this may take a while...', file=sys.stderr)
-		(nnet, traindata) = grp.make_continuous_mdp(G, state_value_map, action_value_map, args.dimensions, hidden_units, args.max_epochs)
+		(nnet, traindata) = grp.make_continuous_mdp(G, args.dimensions, hidden_units, args.max_epochs)
 		io.write_neural_net(nnet, traindata, args.transitions_net)
 		if args.transitions_log:
 			io.write_train_log(nnet, traindata, args.transitions_log)
 
 		# generate the correlated rewards and a network predicting them
 		rewards = rwd.mvnrewards(args.states, args.actions, args.rmeans, cov)
-
+		rwd.annotate_rewards(G, rewards)
+		
 		if not args.rhidden:
 			args.rhidden = (args.dimensions + 2) * (args.tasks + 2)
 
 		print('Training neural network on reward function...this may take a while...', file=sys.stderr)
-		(reward_net, reward_data) = rwd.learn_reward_function(G, args.dimensions, state_value_map, action_value_map, rewards, args.rhidden, args.max_epochs)
+		(reward_net, reward_data) = rwd.learn_reward_function(G, args.rhidden, args.max_epochs)
 		io.write_neural_net(reward_net, reward_data, args.rewards_net)
 		if args.rewards_log:
 			io.write_train_log(reward_net, reward_data, args.rewards_log)
 		
 		if args.transitions_dot:
-			io.output_dot(G, state_value_map, action_value_map, args.transitions_dot)
+			io.output_dot(G, args.transitions_dot)
 
 	elif args.type == 'fuzzed':
 		if not args.baseline:
@@ -219,7 +225,29 @@ if __name__ == '__main__':
 			net2 = net.fuzz_neural_net(net, args.fuzz_frac, args.fuzz_scale)
 			io.write_neural_net(net2, trainset, 'fuzzed.net')
 			io.write_train_log(net2, trainset, 'train_log_fuzzed.dat')
-			
+
+	# elif args.type == 'svm':
+	# 	# generate the underlying graph for the transition dynamics
+	# 	G = grp.rand_graph_uniform_degree(args.states, args.actions)
+	# 	cc = nx.strongly_connected_components(G)
+	# 	if len(cc) > 1:
+	# 		G = grp.make_strongly_connected(G)
+	# 
+	# 	values.annotate_states(G, args.dimensions, 'fractal', 0.7)
+	# 	values.annotate_actions(G, (-2.0, 2.0))
+	# 	
+	# 	# generate the correlated rewards and a network predicting them
+	# 	rewards = rwd.mvnrewards(args.states, args.actions, args.rmeans, cov)
+	# 	rwd.annotate_rewards(G, rewards)
+	# 
+	# 	models = []
+	# 	for task in range(args.tasks):
+	# 		print('building regression model for S_{}...'.format(task))
+	# 		s_a_pairs = values.gen_state_action_pairs(G)
+	# 		training_data = [list(s) + [a] + [s[task]] for s, a in s_a_pairs]
+	# 		model = grp.build_regression_model(training_data, args.svm_C, args.svm_epsilon)
+	# 		models.append(model)
+		
 	else:
 		print('invalid problem type specified: {}', args.type)
 		parser.print_help()

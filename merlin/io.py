@@ -180,18 +180,17 @@ def write_train_log(nnet, training_set, outf):
 #
 # parameters:
 #   G: the graph to output
-#   state_values: the values to annotate each node of the graph with
-#   action_values: the values to annotate each edge of the graph with
 #   outputfile: the name of the graphiz (dot) file to output to
 #   
-def output_dot(G, state_values, action_values, outputfile):
+def output_dot(G, outputfile):
 	f = open(outputfile, 'w')
 	f.write('digraph mdp {\n')
 	f.write('rankdir=LR;\n')
 	# f.write('rotate=90;\n')
-	# print the nodes
-	for i in range(len(G.nodes())):
-		vals = [round(x, 3) for x in state_values[i]]
+
+	# first write the nodes
+	for i, node in enumerate(G):
+		vals = [round(x, 3) for x in G.node[node]['state']]
 		label = str(vals)
 		if i == 0:
 			f.write('{} [label=\"{}\", shape=box];\n'.format(i, label))
@@ -199,10 +198,9 @@ def output_dot(G, state_values, action_values, outputfile):
 			f.write('{} [label=\"{}\"];\n'.format(i, label))
 
 	# and then the edges
-	for (orig, succ) in action_values.keys():
-		# vals = [round(x, 3) for x in action_values[(orig, succ)]]
-		# label = str(vals)
-		f.write('{} -> {} [label=\"{:.3f}\"];\n'.format(orig, succ, action_values[(orig, succ)]))
+	for i, node in enumerate(G):
+		for j, succ in enumerate(G.successors(node)):
+			f.write('{} -> {} [label=\"{:.3f}\"];\n'.format(i, j, G.edge[node][succ]['action']))
 
 	f.write('}\n')
 	f.close()

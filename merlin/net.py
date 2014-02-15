@@ -55,7 +55,3 @@ def fuzz_neural_net(net, frac, scale):
 	fweights = [x if npr.random() >= frac else npr.normal(x, scale) for x in weights]
 	net._setParameters(fweights)
 	return net
-	
-
-
-

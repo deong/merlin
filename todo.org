@@ -35,3 +35,14 @@ generate, and a stem for the output file name. It should then write out that
 many files, stem01.net, stem02.net, etc.
 
 * TODO change other problem types to specify an output file instead of stdout
+  
+* TODO switch to scikit-learn from pybrain
+
+* TODO switch from classification to regression
+Use a separate regression model for every output variable
+
+* DONE ditch separate state-value/action-value maps
+CLOSED: [2014-02-15 Sat 17:26]
+Just augment the graph directly with annotations
+ 
+* TODO give better control over range of action values
