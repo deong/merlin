@@ -232,10 +232,10 @@ if __name__ == '__main__':
 		cc = nx.strongly_connected_components(G)
 		if len(cc) > 1:
 			G = grp.make_strongly_connected(G)
-	
+
 		values.annotate_states(G, args.dimensions, 'fractal', 0.7)
 		values.annotate_actions(G, (-2.0, 2.0))
-		
+
 		# generate the correlated rewards and a network predicting them
 		rewards = rwd.mvnrewards(args.states, args.actions, args.rmeans, cov)
 		rwd.annotate_rewards(G, rewards)

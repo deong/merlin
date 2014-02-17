@@ -98,9 +98,10 @@ def rand_graph_uniform_degree(nodes, edges):
 	# sequences
 	tgraph = nx.directed_configuration_model(din, dout)
 
-	# now label each node with a number so we can refer to it later
-	# for i, node in enumerate(tgraph):
-	# 	tgraph.node[i]['node_num'] = i
+	# make sure all nodes have the correct number of outgoing edges
+	for node in tgraph:
+		assert(edges == len(tgraph.out_edges(node)))
+		
 	return tgraph
 
 
@@ -116,6 +117,8 @@ def rand_graph_uniform_degree(nodes, edges):
 #   G with edges added if needed to make the graph connected
 #   
 def make_strongly_connected(G):
+	num_edges = len(G.out_edges(G.nodes()[0]))
+	
 	components = nx.strongly_connected_components(G)
 	num_components = len(components)
 	if num_components == 1:
@@ -145,6 +148,11 @@ def make_strongly_connected(G):
 		components = nx.strongly_connected_components(G)
 		num_components = len(components)
 		attempts += 1
+
+	# make sure all nodes have the correct number of outgoing edges
+	for node in G:
+		assert(num_edges == len(G.out_edges(node)))
+		
 	return G
 
 			
@@ -170,8 +178,8 @@ def make_continuous_mdp(G, inpd, hidden_units, max_epochs):
 	# to a successor node
 	for node in G:
 		s = G.node[node]['state']
-		for index, succ in enumerate(G.successors(node)):
-			a = G.edge[node][succ]['action']
+		for index, (_, succ, key) in enumerate(G.out_edges(node, keys=True)):
+			a = G.edge[node][succ][key]['action']
 			sp = G.node[succ]['state']
 			training_set.addSample(np.append(s, a), sp)
 
@@ -191,8 +199,8 @@ def build_regression_model(G, state_var, C=1.0, epsilon=0.1):
 	xs = []
 	ys = []
 	for node in G:
-		for succ in G.successors(node):
-			xs.append(list(G.node[node]['state']) + [G.edge[node][succ]['action']])
+		for (_, succ, key) in G.out_edges(node, keys=True):
+			xs.append(list(G.node[node]['state']) + [G.edge[node][succ][key]['action']])
 			ys.append(G.node[succ]['state'][state_var])
 	xs = np.asarray(xs)
 	ys = np.asarray(ys)

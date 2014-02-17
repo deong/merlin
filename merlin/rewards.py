@@ -99,17 +99,17 @@ def learn_reward_function(G, hidden_units, max_epochs):
 	dim = len(G.node[0]['state'])
 	
 	# grab any edge and use it to find the dimensionality of the reward space
-	(src, dest) = G.edges()[0]
-	num_tasks = len(G.edge[src][dest]['reward'])
+	(src, dest, key) = G.edges(keys=True)[0]
+	num_tasks = len(G.edge[src][dest][key]['reward'])
 	
 	training_set = pybrain.datasets.SupervisedDataSet(dim + 1, num_tasks)
 	
 	# for each node in the graph, map the state + action onto a reward
 	for state_index, node in enumerate(G):
 		s = G.node[node]['state']
-		for action_index, succ in enumerate(G.successors(node)):
-			a = G.edge[node][succ]['action']
-			training_set.addSample(np.append(s, a), G.edge[node][succ]['reward'])
+		for action_index, (_, succ, key) in enumerate(G.out_edges(node, keys=True)):
+			a = G.edge[node][succ][key]['action']
+			training_set.addSample(np.append(s, a), G.edge[node][succ][key]['reward'])
 	
 	# finally, create a train a network
 	nnet = pybrain.tools.shortcuts.buildNetwork(dim + 1, hidden_units, num_tasks, bias=True)
@@ -123,9 +123,9 @@ def learn_reward_function(G, hidden_units, max_epochs):
 #
 # parameters:
 #   G: the transition graph
-#   rewards: an nxm matrix of rewards, one for each state-action pair
+#   rewards: an nxmxk matrix of rewards, one for each state-action pair
 #   
 def annotate_rewards(G, rewards):
 	for i, node in enumerate(G):
-		for j, succ in enumerate(G.successors(node)):
-			G.edge[node][succ]['reward'] = rewards[i,j]
+		for j, (_, succ, key) in enumerate(G.out_edges(node, keys=True)):
+			G.edge[node][succ][key]['reward'] = rewards[i,j]

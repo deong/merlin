@@ -67,17 +67,16 @@ def annotate_states(G, inpd, func_type, ruggedness):
 #   
 def annotate_actions(G, action_range):
 	for node in G:
-		num_actions = len(G.successors(node))
+		num_actions = len(G.out_edges(node))
 		step = (action_range[1] - action_range[0])/float(num_actions)
 		min_val = action_range[0]
 		max_val = min_val + step
-		for index, succ in enumerate(G.successors(node)):
+		for index, (_, succ, key) in enumerate(G.out_edges(node, keys=True)):
 			aval = npr.random() * (max_val - min_val) + min_val
-			G.edge[node][succ]['action'] = aval
+			G.edge[node][succ][key]['action'] = aval
 			min_val += step
 			max_val += step
-
-
+	
 
 # walk the graph and generate all state/action pairs
 #
@@ -88,8 +87,8 @@ def annotate_actions(G, action_range):
 def gen_state_action_pairs(G):
 	p = []
 	for node in G:
-		for succ in G.successors(node):
-			p.append((np.asarray(G.node[node]['state']), G.edge[node][succ]['action']))
+		for (_, succ, key) in G.out_edges(node, keys=True):
+			p.append((np.asarray(G.node[node]['state']), G.edge[node][succ][key]['action']))
 	return p
 
 

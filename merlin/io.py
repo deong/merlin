@@ -54,7 +54,7 @@ def write_instance(G, R):
 	print("{} {} {}\n".format(n, m, k))
 	for node in G:
 		line = "{} ".format(node)
-		for index, edge in enumerate(G.successors(node)):
+		for index, (_, edge) in enumerate(G.out_edges(node)):
 			# note that the enumeration flattens out any duplicated
 			# edges; dups are fine for MDPs -- they just indicate two
 			# actions that lead to the same successor state. So we
@@ -222,8 +222,8 @@ def output_dot(G, outputfile):
 
 	# and then the edges
 	for i, node in enumerate(G):
-		for j, succ in enumerate(G.successors(node)):
-			f.write('{} -> {} [label=\"{:.3f}\"];\n'.format(i, j, G.edge[node][succ]['action']))
+		for j, (_, succ, key) in enumerate(G.out_edges(node, keys=True)):
+			f.write('{} -> {} [label=\"{:.3f}\"];\n'.format(i, j, G.edge[node][succ][key]['action']))
 
 	f.write('}\n')
 	f.close()
