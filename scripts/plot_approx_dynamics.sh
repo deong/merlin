@@ -32,14 +32,12 @@ echo "set multiplot layout ${OUTPUTD},1" >> $GPFILE
 
 X1=$((INPUTD+2))
 X2=$((X1+OUTPUTD))
-T1="V1 True"
-T2="V1 Approx"
 for (( OUTPUT=1; OUTPUT<=$OUTPUTD; OUTPUT++)); do
+	T1="V${OUTPUT} True"
+	T2="V${OUTPUT} Approx"
 	echo "plot \"$DATA_FILE\" using $X1 with lines title \"$T1\", \"$DATA_FILE\" using $X2 with lines title \"$T2\"" >> $GPFILE
 	X1=$((X1+1))
 	X2=$((X2+1))
-	T1="V${OUTPUT} True"
-	T2="V${OUTPUT} Approx"
 done
 echo "unset multiplot" >> $GPFILE
 

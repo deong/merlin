@@ -186,15 +186,26 @@ def write_train_log(nnet, training_set, outf):
 #   
 def write_svm_train_log(models, training_sets, outf):
 	dynfile = open(outf, 'w')
-	for inp, target in training_sets:
+	outputs = {}
+	targets = {}
+	for task, (inp, outp) in enumerate(training_sets):
+		out = []
+		tar = []
 		for i in range(len(inp)):
-			approx = []
-			targets = []
-			for task in range(len(models)):
-				approx.append(models[task].predict(inp[i])[0])
-				targets.append(target[i])
-			entry = inp[i].tolist() + targets + approx
-			dynfile.write("{}\n".format(" ".join([str(x) for x in entry])))
+			out.append(models[task].predict(inp[i])[0])
+			tar.append(outp[i])
+		outputs[task] = out
+		targets[task] = tar
+
+	# now we hae outputs and targets as tasksXinputs matrices of data
+	for task, (inp, outp) in enumerate(training_sets):
+		for i in range(len(inp)):
+			line = inp[i].tolist()
+			for j in range(len(targets)):
+				line += [targets[j][i]]
+			for j in range(len(outputs)):
+				line += [outputs[j][i]]
+			dynfile.write("{}\n".format(" ".join([str(x) for x in line])))
 	dynfile.close()
 		
 

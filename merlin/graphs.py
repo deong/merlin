@@ -155,7 +155,19 @@ def make_strongly_connected(G):
 		
 	return G
 
-			
+
+
+# make a random lobster graph converted to a directed multi-graph
+#
+# parameters:
+#   n: number of nodes along the spine of the lobster
+#   p1: probability of generating distance-1 neighbors from the spine
+#   p2: probability of generating distance-2 neighbors from the spine
+def random_lobster(n, p1, p2):
+	return nx.MultiDiGraph(nx.random_lobster(n, p1, p2))
+
+
+
 # construct a continuous MDP based on a random graph
 #
 # The basic idea is to construct a random graph with the desired properties,
