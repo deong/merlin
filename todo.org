@@ -14,7 +14,8 @@ Need three separate parameters: (1) the type of transition dynamics to use, (2)
 the type of state-value function to use, and (3) the type of reward assignment
 to use. Should be able to mix and match them.
 
-* TODO assign state-values by random walks
+* DONE assign state-values by random walks
+CLOSED: [2014-02-20 Thu 17:24]
 Currently state values are assigned by simply ordering the states from 1 to N.
 It would be better if the state values were assigned to the states in the order
 that states were encountered.
@@ -46,3 +47,7 @@ CLOSED: [2014-02-15 Sat 17:26]
 Just augment the graph directly with annotations
  
 * TODO give better control over range of action values
+
+* TODO allow unused state variables
+Should be able to generate state vectors in which not all of the values are
+used in the dynamics and/or rewards.  

@@ -35,35 +35,6 @@ import merlin.values as values
 import merlin.net as net
 import cPickle
 
-# def demo_rand_graph_uniform_degree():
-# 	R = np.asarray([[ 1.0,	0.4, -0.4],
-# 					[ 0.4,	1.0,  0.6],
-# 					[-0.4,	0.6,  1.0]])
-# 	
-# 	nstates = 20
-# 	nactions = 4
-# 	mu = [100.0] * 3
-# 	sigma = [10.0] * 3
-# 	cov = rwd.cor2cov(R, sigma)
-# 	rewards = rwd.mvnrewards(nstates, nactions, mu, cov)
-# 	G = grp.rand_graph_uniform_degree(nstates, nactions)
-# 	cc = nx.strongly_connected_components(G)
-# 	G2 = grp.make_strongly_connected(G)
-# 	cc2 = nx.strongly_connected_components(G2)
-# 	return (G, G2, cc, cc2, rewards)
-# 
-# def demo_maze():
-# 	R = np.asarray([[ 1.0,	0.4, -0.4],
-# 					[ 0.4,	1.0,  0.6],
-# 					[-0.4,	0.6,  1.0]])
-# 	
-# 	mu = [100.0] * 3
-# 	sigma = [10.0] * 3
-# 	cov = rwd.cor2cov(R, sigma)
-# 	z = grd.make_multimaze(10, 10, 3)
-# 	goals = grd.maze_goal_states(z, 3, mu, cov)
-# 	return (z, goals)
-
 
 
 if __name__ == '__main__':
@@ -98,32 +69,10 @@ if __name__ == '__main__':
 	# svm-regression parameters
 	parser.add_argument(      '--svm-C',      default=1.0,   help='penalty parameter for the SVM error term', type=float)
 	parser.add_argument(      '--svm-epsilon',default=0.1,   help='tolerance within which no error is applied', type=float)
-	
+
 	args = parser.parse_args()
 
 
-	# if args.demo:
-		# testing mazes
-		# (z, goals) = demo_maze()
-		# write_maze_instance(z, goals)
-		# sys.exit(0)
-		# end testing
-		
-		# testing random graphs
-		# G, G2, cc, cc2, rewards = demo_rand_graph_uniform_degree()
-		# print('{} components: {}'.format(len(cc), cc))
-		# print('{} components: {}'.format(len(cc2), cc2))
-		# sys.exit(0)
-		# end testing
-
-		# testing continuous mdp generation
-		# G, G2, cc, cc2, rewards = demo_rand_graph_uniform_degree()
-		# (nnet, svm, avm) = grp.make_continuous_mdp(G2, rewards, 2)
-		# grp.output_dot(G, svm, avm, 'discreteG.dot')
-		# sys.exit(0)
-		# end testing
-		
-	
 	if not args.type:
 		parser.print_help()
 		sys.exit(1)
@@ -187,7 +136,7 @@ if __name__ == '__main__':
 		if len(cc) > 1:
 			G = grp.make_strongly_connected(G)
 
-		values.annotate_states(G, args.dimensions, 'fractal', 0.7)
+		values.annotate_states_walk(G, args.dimensions, 'fractal', 0.7)
 		values.annotate_actions(G, (-2.0, 2.0))
 		
 		hidden_units = (args.dimensions + 2) * (args.dimensions + 2)
@@ -227,13 +176,18 @@ if __name__ == '__main__':
 			io.write_train_log(net2, trainset, 'train_log_fuzzed.dat')
 
 	elif args.type == 'svm':
+		if not args.transitions_net:
+			args.transitions_net = 'dynamics.svm'
+		if not args.rewards_net:
+			args.rewards_net = 'rewards.svm'
+			
 		# generate the underlying graph for the transition dynamics
 		G = grp.rand_graph_uniform_degree(args.states, args.actions)
 		cc = nx.strongly_connected_components(G)
 		if len(cc) > 1:
 			G = grp.make_strongly_connected(G)
 
-		values.annotate_states(G, args.dimensions, 'fractal', 0.7)
+		values.annotate_states_walk(G, args.dimensions, 'fractal', 0.7)
 		values.annotate_actions(G, (-2.0, 2.0))
 
 		# generate the correlated rewards and a network predicting them

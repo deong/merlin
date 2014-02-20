@@ -55,6 +55,81 @@ def annotate_states(G, inpd, func_type, ruggedness):
 
 
 
+
+# annotate the graph with state values for each node by taking random walks
+#
+# unlike the preceding method, this one applies the state values in the
+# in which the nodes would be visited by walking through the graphs
+def annotate_states_walk(G, inpd, func_type, ruggedness):
+	if func_type == 'fractal':
+		func = make_fractal
+	elif func_type == 'gaussian':
+		func = make_gaussian_walk
+	else:
+		raise RuntimeError('illegal state-value function type "{}" given'.format(func_type))
+
+	start = G.nodes()[0]
+	paths = get_all_terminal_paths(G, start)
+	for path in paths:
+		num_points = len(path)
+		state_values = []
+		for d in range(inpd):
+			vals = func(num_points, ruggedness)
+			state_values.append(vals)
+		state_values = list(zip(*state_values))
+
+		for index, node in enumerate(path):
+			G.node[node]['state'] = state_values[index]
+
+
+
+
+# get_all_terminal_paths
+#
+# return a list of walks through the graph such that all nodes are visited exactly once
+#
+# parameters:
+#   G: the graph to visit
+#   s: the start node
+def get_all_terminal_paths(G, s):
+	nodes = G.nodes()
+	unvisited = nodes[:]
+	paths = []
+	while unvisited:
+		if not s in unvisited:
+			s = npr.choice(unvisited)
+		path = get_terminal_path(G, s, unvisited)
+		paths.append(path)
+	return paths
+		
+
+# get_terminal_path
+#
+# create a path through the graph from a start node until no further unvisited nodes
+# can be reached
+#
+# parameters:
+#   G: a graph
+#   s: a start node
+#   unvisited: which nodes have not been visited already
+def get_terminal_path(G, s, unvisited):
+	path = [s]
+	unvisited.remove(s)
+	done = False
+	while not done:
+		done = True
+		edges = G.out_edges(s)
+		npr.shuffle(edges)
+		for (_, dst) in edges:
+			if dst in unvisited:
+				done = False
+				path.append(dst)
+				unvisited.remove(dst)
+				s = dst
+				break
+	return path
+
+			
 # map a real-valued action value onto each edge in the given transition graph
 #
 # tries to evenly distribute the action values in the allowed range so that you
