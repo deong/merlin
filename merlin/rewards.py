@@ -28,6 +28,7 @@ import scipy.linalg as sla
 import pybrain.datasets
 import pybrain.tools.shortcuts
 import pybrain.supervised.trainers
+import sklearn.svm as svm
 
 #
 # create random reward structure for an (nstates, nactions) MDP
@@ -117,6 +118,24 @@ def learn_reward_function(G, hidden_units, max_epochs):
 	errors = trainer.trainUntilConvergence(maxEpochs=max_epochs)
 	
 	return (nnet, training_set)
+
+
+
+
+def learn_reward_function_svm(G, task, C, epsilon):
+	model = svm.SVR()
+	xs = []
+	ys = []
+	for node in G:
+		for (_, succ, key) in G.out_edges(node, keys=True):
+			xs.append(list(G.node[node]['state']) + [G.edge[node][succ][key]['action']])
+			ys.append(G.edge[node][succ][key]['reward'][task])
+	xs = np.asarray(xs)
+	ys = np.asarray(ys)
+	return (model.fit(xs, ys), (xs, ys))
+	
+
+
 	
 
 # write the reward information directly into the graph as an annotation on the edges

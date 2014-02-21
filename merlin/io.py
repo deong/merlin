@@ -210,6 +210,34 @@ def write_svm_train_log(models, training_sets, outf):
 		
 
 
+# write out a series of trained support vector regression models with training data
+#
+# parameters:
+#   models: list of trained SVR models
+#   datasets: list of lists of [x, y] training data sets
+#   outf: the name of the file to write the models to
+#   
+def write_svm_model(models, datasets, outf):
+	svmFile = open(outf, 'wb')
+	cPickle.dump(models, svmFile)
+	cPickle.dump(datasets, svmFile)
+	svmFile.close()
+
+
+
+# read in a series of trained svm models with training data
+#
+# parameters:
+#   inf: the name of the input file to read
+#
+def read_svm_model(inf):
+	svmFile = open(inf, 'rb')
+	models = cPickle.load(svmFile)
+	datasets = cPickle.load(svmFile)
+	return (models, datasets)
+
+
+
 # write the given graph and annotations out to a file suitable for graphing with graphviz
 #
 # parameters:

@@ -60,7 +60,7 @@ def annotate_states(G, inpd, func_type, ruggedness):
 #
 # unlike the preceding method, this one applies the state values in the
 # in which the nodes would be visited by walking through the graphs
-def annotate_states_walk(G, inpd, func_type, ruggedness):
+def annotate_states_walk(G, inpd, func_type, ruggedness, scalef):
 	if func_type == 'fractal':
 		func = make_fractal
 	elif func_type == 'gaussian':
@@ -74,7 +74,7 @@ def annotate_states_walk(G, inpd, func_type, ruggedness):
 		num_points = len(path)
 		state_values = []
 		for d in range(inpd):
-			vals = func(num_points, ruggedness)
+			vals = [x * scalef for x in func(num_points, ruggedness)]
 			state_values.append(vals)
 		state_values = list(zip(*state_values))
 

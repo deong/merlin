@@ -136,7 +136,8 @@ if __name__ == '__main__':
 		if len(cc) > 1:
 			G = grp.make_strongly_connected(G)
 
-		values.annotate_states_walk(G, args.dimensions, 'fractal', 0.7)
+		scalef = 10.0
+		values.annotate_states_walk(G, args.dimensions, 'fractal', 0.7, scalef)
 		values.annotate_actions(G, (-2.0, 2.0))
 		
 		hidden_units = (args.dimensions + 2) * (args.dimensions + 2)
@@ -187,7 +188,8 @@ if __name__ == '__main__':
 		if len(cc) > 1:
 			G = grp.make_strongly_connected(G)
 
-		values.annotate_states_walk(G, args.dimensions, 'fractal', 0.7)
+		scalef = 10.0
+		values.annotate_states_walk(G, args.dimensions, 'fractal', 0.7, scalef)
 		values.annotate_actions(G, (-2.0, 2.0))
 
 		# generate the correlated rewards and a network predicting them
@@ -196,12 +198,26 @@ if __name__ == '__main__':
 	
 		models = []
 		training_sets = []
-		for task in range(args.tasks):
-			print('building regression model for S_{}...'.format(task))
-			model, training_data = grp.build_regression_model(G, task, args.svm_C, args.svm_epsilon)
+		for dim in range(args.dimensions):
+			print('building regression model for S_{}...'.format(dim))
+			model, training_data = grp.build_regression_model(G, dim, args.svm_C, args.svm_epsilon)
 			models.append(model)
 			training_sets.append(training_data)
-		io.write_svm_train_log(models, training_sets, 'svm_train.log')
+		io.write_svm_model(models, training_sets, args.transitions_net)
+
+		rmodels = []
+		rtraining_sets = []
+		for task in range(args.tasks):
+			print('building regression model for R_{}...'.format(task))
+			model, training_data = rwd.learn_reward_function_svm(G, task, args.svm_C, args.svm_epsilon)
+			rmodels.append(model)
+			rtraining_sets.append(training_data)
+		io.write_svm_model(rmodels, rtraining_sets, args.rewards_net)
+			
+		if args.transitions_log:
+			io.write_svm_train_log(models, training_sets, args.transitions_log)
+		if args.rewards_log:
+			io.write_svm_train_log(rmodels, rtraining_sets, args.rewards_log)
 		
 	else:
 		print('invalid problem type specified: {}', args.type)
