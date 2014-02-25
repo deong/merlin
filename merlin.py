@@ -40,7 +40,7 @@ import cPickle
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	parser.add_argument(	  '--demo',						 help='run with a sample set of parameters', action='store_true')
-	parser.add_argument('-t', '--type',		  default=None,	 help='problem instance type (required)', choices=['garnet', 'randgraph', 'maze', 'nnet', 'fuzzed', 'svm'])
+	parser.add_argument('-t', '--type',		  default=None,	 help='problem instance type (required)', choices=['garnet', 'randgraph', 'maze', 'nnet', 'fuzzed', 'svm', 'gp'])
 	parser.add_argument('-n', '--states',	  default=100,	 help='size of the state space', type=int)
 	parser.add_argument('-m', '--actions',	  default=4,	 help='number of available actions', type=int)
 	parser.add_argument('-k', '--tasks',	  default=2,	 help='number of concurrent tasks', type=int)
@@ -70,6 +70,9 @@ if __name__ == '__main__':
 	parser.add_argument(      '--svm-C',      default=1.0,   help='penalty parameter for the SVM error term', type=float)
 	parser.add_argument(      '--svm-epsilon',default=0.1,   help='tolerance within which no error is applied', type=float)
 
+	# gaussian process parameters
+	parser.add_argument(      '--theta0',     default=0.5,   help='default parameters of the autocorrelation model', type=float)
+	
 	args = parser.parse_args()
 
 
@@ -200,7 +203,7 @@ if __name__ == '__main__':
 		training_sets = []
 		for dim in range(args.dimensions):
 			print('building regression model for S_{}...'.format(dim))
-			model, training_data = grp.build_regression_model(G, dim, args.svm_C, args.svm_epsilon)
+			model, training_data = grp.build_svm_regression_model(G, dim, args.svm_C, args.svm_epsilon)
 			models.append(model)
 			training_sets.append(training_data)
 		io.write_svm_model(models, training_sets, args.transitions_net)
@@ -209,10 +212,53 @@ if __name__ == '__main__':
 		rtraining_sets = []
 		for task in range(args.tasks):
 			print('building regression model for R_{}...'.format(task))
-			model, training_data = rwd.learn_reward_function_svm(G, task, args.svm_C, args.svm_epsilon)
+			model, training_data = rwd.learn_svm_reward_function(G, task, args.svm_C, args.svm_epsilon)
 			rmodels.append(model)
 			rtraining_sets.append(training_data)
 		io.write_svm_model(rmodels, rtraining_sets, args.rewards_net)
+			
+		if args.transitions_log:
+			io.write_svm_train_log(models, training_sets, args.transitions_log)
+		if args.rewards_log:
+			io.write_svm_train_log(rmodels, rtraining_sets, args.rewards_log)
+
+	elif args.type == 'gp':
+		if not args.transitions_net:
+			args.transitions_net = 'dynamics.gp'
+		if not args.rewards_net:
+			args.rewards_net = 'rewards.gp'
+
+		# generate the underlying graph for the transition dynamics
+		G = grp.rand_graph_uniform_degree(args.states, args.actions)
+		cc = nx.strongly_connected_components(G)
+		if len(cc) > 1:
+			G = grp.make_strongly_connected(G)
+
+		scalef = 1.0
+		values.annotate_states_walk(G, args.dimensions, 'fractal', 0.7, scalef)
+		values.annotate_actions(G, (-2.0, 2.0))
+
+		# generate the correlated rewards and a network predicting them
+		rewards = rwd.mvnrewards(args.states, args.actions, args.rmeans, cov)
+		rwd.annotate_rewards(G, rewards)
+
+		models = []
+		training_sets = []
+		for dim in range(args.dimensions):
+			print('building regression model for S_{}...'.format(dim))
+			model, training_data = grp.build_gp_regression_model(G, dim, args.theta0)
+			models.append(model)
+			training_sets.append(training_data)
+		io.write_gp_model(models, training_sets, args.transitions_net)
+
+		rmodels = []
+		rtraining_sets = []
+		for task in range(args.tasks):
+			print('building regression model for R_{}...'.format(task))
+			model, training_data = rwd.learn_gp_reward_function(G, task, args.theta0)
+			rmodels.append(model)
+			rtraining_sets.append(training_data)
+		io.write_gp_model(rmodels, rtraining_sets, args.rewards_net)
 			
 		if args.transitions_log:
 			io.write_svm_train_log(models, training_sets, args.transitions_log)
@@ -224,5 +270,5 @@ if __name__ == '__main__':
 		parser.print_help()
 		sys.exit(1)
 		
-
+		
 

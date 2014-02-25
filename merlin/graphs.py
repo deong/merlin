@@ -35,6 +35,7 @@ import pybrain.supervised.trainers
 import matplotlib.pyplot as mpl
 import merlin.values as values
 import sklearn.svm as svm
+import sklearn.gaussian_process as gp
 
 #
 # create a random graph with uniform out-degree
@@ -205,9 +206,40 @@ def make_continuous_mdp(G, inpd, hidden_units, max_epochs):
 
 
 # build an SVM regression model with the given training data
-# 
-def build_regression_model(G, state_var, C=1.0, epsilon=0.1):
+#
+# parameters:
+#   G: the annotated transition graph
+#   state_var: the dimension in the state space to be learned
+#   C: the SVM regularization parameter
+#   epsilon: the tolerance outside of which the error is applied
+# returns:
+#   a tuple of a trained svm model and the training data
+#   
+def build_svm_regression_model(G, state_var, C=1.0, epsilon=0.1):
 	model = svm.SVR()
+	xs = []
+	ys = []
+	for node in G:
+		for (_, succ, key) in G.out_edges(node, keys=True):
+			xs.append(list(G.node[node]['state']) + [G.edge[node][succ][key]['action']])
+			ys.append(G.node[succ]['state'][state_var])
+	xs = np.asarray(xs)
+	ys = np.asarray(ys)
+	return (model.fit(xs, ys), (xs, ys))
+
+
+
+# build gaussian process regression model with the given training data
+# 
+# parameters:
+#   G: the annotated transition graph
+#   state_var: the dimension in the state space to be learned
+#   theta0: the initial estimate for the GP parameters
+# returns:
+#   a tuple of a trained GP model and the training data
+#   
+def build_gp_regression_model(G, state_var, theta0):
+	model = gp.GaussianProcess(theta0=theta0)
 	xs = []
 	ys = []
 	for node in G:

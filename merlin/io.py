@@ -234,6 +234,36 @@ def read_svm_model(inf):
 	svmFile = open(inf, 'rb')
 	models = cPickle.load(svmFile)
 	datasets = cPickle.load(svmFile)
+	svmFile.close()
+	return (models, datasets)
+
+
+
+# write out a series of trained gaussian process regression models with training data
+#
+# parameters:
+#   models: list of trained GP models
+#   datasets: list of lists of [x, y] training data sets
+#   outf: the name of the file to write the models to
+#   
+def write_gp_model(models, datasets, outf):
+	gpFile = open(outf, 'wb')
+	cPickle.dump(models, gpFile)
+	cPickle.dump(datasets, gpFile)
+	gpFile.close()
+
+
+
+# read in a series of trained gaussian process models with training data
+#
+# parameters:
+#   inf: the name of the input file to read
+#
+def read_gp_model(inf):
+	gpFile = open(inf, 'rb')
+	models = cPickle.load(gpFile)
+	datasets = cPickle.load(gpFile)
+	gpFile.close()
 	return (models, datasets)
 
 

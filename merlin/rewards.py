@@ -29,6 +29,7 @@ import pybrain.datasets
 import pybrain.tools.shortcuts
 import pybrain.supervised.trainers
 import sklearn.svm as svm
+import sklearn.gaussian_process as gp
 
 #
 # create random reward structure for an (nstates, nactions) MDP
@@ -122,8 +123,41 @@ def learn_reward_function(G, hidden_units, max_epochs):
 
 
 
-def learn_reward_function_svm(G, task, C, epsilon):
+# learn an approximation to the reward function using support vector regression
+#
+# parameters:
+#   G: the annotated transition graph
+#   task: the current task number to be learned
+#   C: the regularization parameter for the SVM
+#   epsilon: the tolerance outside of which the error is applied
+# returns:
+#   a tuple of the trained model along with the training data set
+#
+def learn_svm_reward_function(G, task, C, epsilon):
 	model = svm.SVR()
+	xs = []
+	ys = []
+	for node in G:
+		for (_, succ, key) in G.out_edges(node, keys=True):
+			xs.append(list(G.node[node]['state']) + [G.edge[node][succ][key]['action']])
+			ys.append(G.edge[node][succ][key]['reward'][task])
+	xs = np.asarray(xs)
+	ys = np.asarray(ys)
+	return (model.fit(xs, ys), (xs, ys))
+	
+
+
+# learn an approximation to the reward function using gaussian processes
+#
+# parameters:
+#   G: the annotated transition graph
+#   task: the current task number to be learned
+#   theta0: the initial estimate for the GP parameters
+# returns:
+#   a tuple of the trained model along with the training data set
+#
+def learn_gp_reward_function(G, task, theta0):
+	model = gp.GaussianProcess(theta0=theta0)
 	xs = []
 	ys = []
 	for node in G:
