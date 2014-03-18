@@ -27,7 +27,7 @@ GPFILE=$(mktemp)
 # plot the walk through the state space
 if [ "$OUTPUT_FILE" != "term" ]; then
 	echo "set terminal pdf" >> $GPFILE
-	echo "set output \"$OUTPUT_FILE\"" >> $GPFILE
+	echo "set output \"states-$OUTPUT_FILE\"" >> $GPFILE
 fi
 echo "set multiplot layout $INPUTD,1" >> $GPFILE
 for (( statevar=1; statevar<=$INPUTD; statevar++ )); do
@@ -41,7 +41,7 @@ rm $GPFILE
 # and then through the reward space
 if [ "$OUTPUT_FILE" != "term" ]; then
 	echo "set terminal pdf" >> $GPFILE
-	echo "set output \"$OUTPUT_FILE\"" >> $GPFILE
+	echo "set output \"rewards-ls$OUTPUT_FILE\"" >> $GPFILE
 fi
 echo "set multiplot layout $OUTPUTD,1" >> $GPFILE
 offset=$((INPUTD*2+1))
