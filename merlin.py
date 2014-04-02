@@ -39,8 +39,13 @@ import cPickle
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
-	parser.add_argument(	  '--demo',						 help='run with a sample set of parameters', action='store_true')
-	parser.add_argument('-t', '--type',		  default=None,	 help='problem instance type (required)', choices=['garnet', 'randgraph', 'maze', 'nnet', 'fuzzed', 'svm', 'gp'])
+	#	parser.add_argument('-t', '--type',		  default=None,	 help='problem instance type (required)', choices=['garnet', 'randgraph', 'maze', 'nnet', 'fuzzed', 'svm', 'gp'])
+
+	parser.add_argument('-t', '--type',                      help='type of generated instance', choices=['discrete','continuous','perturbation','maze'])
+	parser.add_argument(      '--graph-type',                help='graph generation algorithm for state transition function', choices=['random','maze','lobster'])
+	parser.add_argument(      '--model-type',                help='generative model type for continuous problems', choices=['nnet','svm','gp'])
+	parser.add_argument(      '--landscape-type',            help='type of model for mapping values onto states', choices=['fractal','gaussian'])
+							  
 	parser.add_argument('-n', '--states',	  default=100,	 help='size of the state space', type=int)
 	parser.add_argument('-m', '--actions',	  default=4,	 help='number of available actions', type=int)
 	parser.add_argument('-k', '--tasks',	  default=2,	 help='number of concurrent tasks', type=int)
@@ -49,7 +54,9 @@ if __name__ == '__main__':
 	parser.add_argument('-s', '--stdev',					 help='standard deviations of task rewards (in python list form)')
 	parser.add_argument('-x', '--rows',		  default=10,	 help='rows in random maze', type=int)
 	parser.add_argument('-y', '--cols',		  default=10,	 help='columns in random maze', type=int)
-
+	parser.add_argument(      '--ruggedness', default=0.7,   help='ruggedness of the state-transition functions in continuous models', type=float)
+	parser.add_argument(      '--landscape-scale', default=1.0, help='scale factor for state-value functions', type=float)
+							  
 	# neural net parameters
 	parser.add_argument('-d', '--dimensions', default=2,     help='dimensionality of the state vector', type=int)
 	parser.add_argument(      '--hidden',                    help='number of hidden units in the approximation network', type=int)
@@ -105,166 +112,163 @@ if __name__ == '__main__':
 	if not rwd.is_pos_def(cov):
 		print('Error: covariance matrix must be positive definite', file=sys.stderr)
 		sys.exit(1)
-		
-	if args.type == 'randgraph':
-		rewards = rwd.mvnrewards(args.states, args.actions, args.rmeans, cov)
-		transition_graph = grp.rand_graph_uniform_degree(args.states, args.actions)
-		io.write_instance(transition_graph, rewards)
-		print('# type={}, states={}, actions={}, correlation={}, stdev={}'.
-			  format(args.type, args.states, args.actions, args.correlation.tolist(), args.stdev.tolist()))
 
-	elif args.type == 'maze':
+
+	# if we're generating a new model, we need to generate reward structures
+	# if args.type != 'perturbation':
+	# 	rewards = rwd.mvnrewards(args.states, args.actions, args.rmeans, cov)
+	# 	transition_graph = grp.rand_graph_uniform_degree(args.states, args.actions)
+	# 	io.write_instance(transition_graph, rewards)
+	# 	print('# type={}, states={}, actions={}, correlation={}, stdev={}'.
+	# 		  format(args.type, args.states, args.actions, args.correlation.tolist(), args.stdev.tolist()))
+
+
+	# maze type instances
+	if args.type == 'maze':
+		# TODO: incorporate correlated rewards somehow
 		maze = grd.make_multimaze(args.rows, args.cols, args.tasks)
 		goals = grd.maze_goal_states(maze)
-		# transition_graph = maze_transition_graph(maze, goals)
-		# rewards = np.zeros([args.rows * args.cols, 4, args.tasks])
-		# write_instance(transition_graph, rewards)
 		io.write_maze_instance(maze, goals)
 		print('# type={}, rows={}, cols={}, correlation={}, stdev={}'.
 			  format(args.type, args.rows, args.col, args.correlation.tolist(), args.stdev.tolist()))
 
-	elif args.type == 'garnet':
-		# generate garnet problem
-		print('todo')
-		
-	elif args.type == 'nnet':
-		if not args.transitions_net:
-			args.transitions_net = 'dynamics.net'
-		if not args.rewards_net:
-			args.rewards_net = 'rewards.net'
-			
-		# generate the underlying graph for the transition dynamics
-		G = grp.rand_graph_uniform_degree(args.states, args.actions)
-		cc = nx.strongly_connected_components(G)
-		if len(cc) > 1:
-			G = grp.make_strongly_connected(G)
 
-		scalef = 10.0
-		values.annotate_states_walk(G, args.dimensions, 'fractal', 0.7, scalef)
-		values.annotate_actions(G, (-2.0, 2.0))
-		
-		hidden_units = (args.dimensions + 2) * (args.dimensions + 2)
-		if args.hidden:
-			hidden_units = int(args.hidden)
-
-		print('Training neural network on state dynamics...this may take a while...', file=sys.stderr)
-		(nnet, traindata) = grp.make_continuous_mdp(G, args.dimensions, hidden_units, args.max_epochs)
-		io.write_neural_net(nnet, traindata, args.transitions_net)
-		if args.transitions_log:
-			io.write_train_log(nnet, traindata, args.transitions_log)
-
-		# generate the correlated rewards and a network predicting them
-		rewards = rwd.mvnrewards(args.states, args.actions, args.rmeans, cov)
-		rwd.annotate_rewards(G, rewards)
-		
-		if not args.rhidden:
-			args.rhidden = (args.dimensions + 2) * (args.tasks + 2)
-
-		print('Training neural network on reward function...this may take a while...', file=sys.stderr)
-		(reward_net, reward_data) = rwd.learn_reward_function(G, args.rhidden, args.max_epochs)
-		io.write_neural_net(reward_net, reward_data, args.rewards_net)
-		if args.rewards_log:
-			io.write_train_log(reward_net, reward_data, args.rewards_log)
-		
-		if args.transitions_dot:
-			io.output_dot(G, args.transitions_dot)
-
-	elif args.type == 'fuzzed':
+	# perturbation of existing instances
+	elif args.type == 'perturbation':
 		if not args.baseline:
 			parser.print_help()
 			sys.exit(1)
 		else:
+			# TODO: handle other kinds of models
 			(net, trainset) = io.read_neural_net(args.baseline)
 			net2 = net.fuzz_neural_net(net, args.fuzz_frac, args.fuzz_scale)
 			io.write_neural_net(net2, trainset, 'fuzzed.net')
 			io.write_train_log(net2, trainset, 'train_log_fuzzed.dat')
 
-	elif args.type == 'svm':
-		if not args.transitions_net:
-			args.transitions_net = 'dynamics.svm'
-		if not args.rewards_net:
-			args.rewards_net = 'rewards.svm'
-			
-		# generate the underlying graph for the transition dynamics
-		G = grp.rand_graph_uniform_degree(args.states, args.actions)
-		cc = nx.strongly_connected_components(G)
-		if len(cc) > 1:
-			G = grp.make_strongly_connected(G)
 
-		scalef = 10.0
-		values.annotate_states_walk(G, args.dimensions, 'fractal', 0.7, scalef)
-		values.annotate_actions(G, (-2.0, 2.0))
+	# for discrete istances, we need to generate transition graphs and reward structures
+	# and write them out directly
+	elif args.type == 'discrete':
+		if not args.graph_type:
+			parser.print_help()
+			sys.exit(1)
 
-		# generate the correlated rewards and a network predicting them
+		transition_graph = grp.create_graph(args.graph_type, args.states, args.actions)
+		# TODO: fix discrete lobster generation
+		if args.graph_type == 'lobster':
+			args.actions = 2
 		rewards = rwd.mvnrewards(args.states, args.actions, args.rmeans, cov)
-		rwd.annotate_rewards(G, rewards)
-	
-		models = []
-		training_sets = []
-		for dim in range(args.dimensions):
-			print('building regression model for S_{}...'.format(dim))
-			model, training_data = grp.build_svm_regression_model(G, dim, args.svm_C, args.svm_epsilon)
-			models.append(model)
-			training_sets.append(training_data)
-		io.write_svm_model(models, training_sets, args.transitions_net)
-
-		rmodels = []
-		rtraining_sets = []
-		for task in range(args.tasks):
-			print('building regression model for R_{}...'.format(task))
-			model, training_data = rwd.learn_svm_reward_function(G, task, args.svm_C, args.svm_epsilon)
-			rmodels.append(model)
-			rtraining_sets.append(training_data)
-		io.write_svm_model(rmodels, rtraining_sets, args.rewards_net)
-			
-		if args.transitions_log:
-			io.write_svm_train_log(models, training_sets, args.transitions_log)
-		if args.rewards_log:
-			io.write_svm_train_log(rmodels, rtraining_sets, args.rewards_log)
-
-	elif args.type == 'gp':
-		if not args.transitions_net:
-			args.transitions_net = 'dynamics.gp'
-		if not args.rewards_net:
-			args.rewards_net = 'rewards.gp'
-
-		# generate the underlying graph for the transition dynamics
-		G = grp.rand_graph_uniform_degree(args.states, args.actions)
-		cc = nx.strongly_connected_components(G)
-		if len(cc) > 1:
-			G = grp.make_strongly_connected(G)
-
-		scalef = 1.0
-		values.annotate_states_walk(G, args.dimensions, 'fractal', 0.7, scalef)
-		values.annotate_actions(G, (-2.0, 2.0))
-
-		# generate the correlated rewards and a network predicting them
-		rewards = rwd.mvnrewards(args.states, args.actions, args.rmeans, cov)
-		rwd.annotate_rewards(G, rewards)
-
-		models = []
-		training_sets = []
-		for dim in range(args.dimensions):
-			print('building regression model for S_{}...'.format(dim))
-			model, training_data = grp.build_gp_regression_model(G, dim, args.theta0)
-			models.append(model)
-			training_sets.append(training_data)
-		io.write_gp_model(models, training_sets, args.transitions_net)
-
-		rmodels = []
-		rtraining_sets = []
-		for task in range(args.tasks):
-			print('building regression model for R_{}...'.format(task))
-			model, training_data = rwd.learn_gp_reward_function(G, task, args.theta0)
-			rmodels.append(model)
-			rtraining_sets.append(training_data)
-		io.write_gp_model(rmodels, rtraining_sets, args.rewards_net)
-			
-		if args.transitions_log:
-			io.write_svm_train_log(models, training_sets, args.transitions_log)
-		if args.rewards_log:
-			io.write_svm_train_log(rmodels, rtraining_sets, args.rewards_log)
 		
+		io.write_instance(transition_graph, rewards)
+		print('# type={}, states={}, actions={}, correlation={}, stdev={}'.
+			  format(args.type, args.states, args.actions, args.correlation.tolist(), args.stdev.tolist()))
+
+
+	# for continuous instances, we need to generate discrete state transition graphs and rewards,
+	# and then learn continuous approximations to the discrete models
+	elif args.type == 'continuous':
+		# graph type, model type are required
+		if not args.graph_type or not args.model_type:
+			parser.print_help()
+			sys.exit(1)
+
+		# generate the underlying graph for the transition dynamics
+		G = grp.create_graph(args.graph_type, args.states, args.actions)
+
+		# generate the correlated rewards and a network predicting them
+		rewards = rwd.mvnrewards(args.states, args.actions, args.rmeans, cov)
+		rwd.annotate_rewards(G, rewards)
+
+		# default to fractal landscape
+		if not args.landscape_type:
+			args.landscape_type = 'fractal'
+
+		values.annotate_states_walk(G, args.dimensions, args.landscape_type, args.ruggedness, args.landscape_scale)
+		# TODO: allow control of range of action values
+		values.annotate_actions(G, (-2.0, 2.0))
+
+		if not args.transitions_net:
+			args.transitions_net = 'dynamics.model'
+		if not args.rewards_net:
+			args.rewards_net = 'rewards.model'
+			
+		if args.model_type == 'nnet':
+			hidden_units = (args.dimensions + 2) * (args.dimensions + 2)
+			if args.hidden:
+				hidden_units = int(args.hidden)
+	
+			print('Training neural network on state dynamics...this may take a while...', file=sys.stderr)
+			(nnet, traindata) = grp.make_continuous_mdp(G, args.dimensions, hidden_units, args.max_epochs)
+			io.write_neural_net(nnet, traindata, args.transitions_net)
+			if args.transitions_log:
+				io.write_train_log(nnet, traindata, args.transitions_log)
+
+			# train on the reward function
+			if not args.rhidden:
+				args.rhidden = (args.dimensions + 2) * (args.tasks + 2)
+	
+			print('Training neural network on reward function...this may take a while...', file=sys.stderr)
+			(reward_net, reward_data) = rwd.learn_reward_function(G, args.rhidden, args.max_epochs)
+			io.write_neural_net(reward_net, reward_data, args.rewards_net)
+			if args.rewards_log:
+				io.write_train_log(reward_net, reward_data, args.rewards_log)
+			
+			if args.transitions_dot:
+				io.output_dot(G, args.transitions_dot)
+	
+		elif args.model_type == 'svm':
+			models = []
+			training_sets = []
+			for dim in range(args.dimensions):
+				print('building regression model for S_{}...'.format(dim))
+				model, training_data = grp.build_svm_regression_model(G, dim, args.svm_C, args.svm_epsilon)
+				models.append(model)
+				training_sets.append(training_data)
+			io.write_svm_model(models, training_sets, args.transitions_net)
+	
+			rmodels = []
+			rtraining_sets = []
+			for task in range(args.tasks):
+				print('building regression model for R_{}...'.format(task))
+				model, training_data = rwd.learn_svm_reward_function(G, task, args.svm_C, args.svm_epsilon)
+				rmodels.append(model)
+				rtraining_sets.append(training_data)
+			io.write_svm_model(rmodels, rtraining_sets, args.rewards_net)
+				
+			if args.transitions_log:
+				io.write_svm_train_log(models, training_sets, args.transitions_log)
+			if args.rewards_log:
+				io.write_svm_train_log(rmodels, rtraining_sets, args.rewards_log)
+	
+		elif args.model_type == 'gp':
+			models = []
+			training_sets = []
+			for dim in range(args.dimensions):
+				print('building regression model for S_{}...'.format(dim))
+				model, training_data = grp.build_gp_regression_model(G, dim, args.theta0)
+				models.append(model)
+				training_sets.append(training_data)
+			io.write_gp_model(models, training_sets, args.transitions_net)
+	
+			rmodels = []
+			rtraining_sets = []
+			for task in range(args.tasks):
+				print('building regression model for R_{}...'.format(task))
+				model, training_data = rwd.learn_gp_reward_function(G, task, args.theta0)
+				rmodels.append(model)
+				rtraining_sets.append(training_data)
+			io.write_gp_model(rmodels, rtraining_sets, args.rewards_net)
+				
+			if args.transitions_log:
+				io.write_svm_train_log(models, training_sets, args.transitions_log)
+			if args.rewards_log:
+				io.write_svm_train_log(rmodels, rtraining_sets, args.rewards_log)
+
+		else:
+			print('invalid model_type specified: {}', args.model_type)
+			parser.print_help()
+			sys.exit(1)
+			
 	else:
 		print('invalid problem type specified: {}', args.type)
 		parser.print_help()

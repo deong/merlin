@@ -167,8 +167,28 @@ def make_strongly_connected(G):
 def random_lobster(n, p1, p2):
 	return nx.MultiDiGraph(nx.random_lobster(n, p1, p2))
 
+def random_lobster(nodes, edges):
+	return nx.MultiDiGraph(nx.random_lobster(nodes, 1.0, 1.0))
 
 
+# return a random graph of the requested type
+#
+# parameters:
+#   gtype: the type of graph to create
+#   n:     number of nodes in the graph
+#   m:     number of edges from each node
+def create_graph(gtype, n, m):
+	if gtype == 'random':
+		g = rand_graph_uniform_degree(n, m)
+		g = make_strongly_connected(g)
+		return g
+	elif gtype == 'lobster':
+		# TODO: allow better control over the graph structure in lobster graphs
+		g = random_lobster(n, m)
+		return g
+
+
+	
 # construct a continuous MDP based on a random graph
 #
 # The basic idea is to construct a random graph with the desired properties,
