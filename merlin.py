@@ -153,10 +153,12 @@ if __name__ == '__main__':
 			parser.print_help()
 			sys.exit(1)
 
+		if args.graph_type == 'lobster':
+			args.actions = 3
 		transition_graph = grp.create_graph(args.graph_type, args.states, args.actions)
 		# TODO: fix discrete lobster generation
-		if args.graph_type == 'lobster':
-			args.actions = 2
+		# actual number of nodes in a lobster is stochastic
+		args.states = transition_graph.number_of_nodes()
 		rewards = rwd.mvnrewards(args.states, args.actions, args.rmeans, cov)
 		
 		io.write_instance(transition_graph, rewards)

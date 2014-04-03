@@ -158,17 +158,64 @@ def make_strongly_connected(G):
 
 
 
+# make a complete lobster graph with exactly n nodes along the spine
+#
+# parameters:
+#   nodes: number of nodes along the spine
+#   edges: (ignored)
+#
+# adapted from the networkx random_lobster method to remove the stochasticity
+# in the length of the spine
+def complete_lobster(n, edges, seed=None):
+	if seed is not None:
+		random.seed(seed)
+	p1 = p2 = 1.0
+	llen=n
+	L=nx.path_graph(llen)
+	L.name="random_lobster(%d,%s,%s)"%(n,p1,p2)
+	# build caterpillar: add edges to path graph with probability p1
+	current_node=llen-1
+	for n in xrange(llen):
+		if npr.random()<p1: # add fuzzy caterpillar parts
+			current_node+=1
+			L.add_edge(n,current_node)
+			if random.random()<p2: # add crunchy lobster bits
+				current_node+=1
+				L.add_edge(current_node-1,current_node)
+
+	g = nx.MultiDiGraph(L) # voila, un lobster!
+	for node in g:
+		# if it's a leaf node, add a self edge and an edge back to the spine
+		if len(g.out_edges(node)) == 1:
+			knee = g.in_edges(node)[0][0]
+			knee_edges = sorted(g.in_edges(knee))
+			spine = knee_edges[0][0]
+			g.add_edge(node, spine)
+		if len(g.out_edges(node)) == 2:
+			g.add_edge(node, node)
+	return g
+
+
 # make a random lobster graph converted to a directed multi-graph
 #
 # parameters:
-#   n: number of nodes along the spine of the lobster
-#   p1: probability of generating distance-1 neighbors from the spine
-#   p2: probability of generating distance-2 neighbors from the spine
-def random_lobster(n, p1, p2):
-	return nx.MultiDiGraph(nx.random_lobster(n, p1, p2))
-
+#   nodes: expected number of nodes along the spine of the lobster
+#   edges: number of edges (ignored and forced to 3)
+#
+# Note: for all non-spine nodes, we add edges to make the out-degree uniform.
+# One edge is added as a self-edge. If another is needed (for leaf nodes, it is
+# added to its predecessor node.
 def random_lobster(nodes, edges):
-	return nx.MultiDiGraph(nx.random_lobster(nodes, 1.0, 1.0))
+	g = nx.MultiDiGraph(nx.random_lobster(nodes, 1.0, 1.0))
+	for node in g:
+		# if it's a leaf node, add a self edge and an edge back to the spine
+		if len(g.out_edges(node)) == 1:
+			knee = g.in_edges(node)[0][0]
+			spine = g.in_edges(knee)[0][0]
+			g.add_edge(node, spine)
+		if len(g.out_edges(node)) == 2:
+			g.add_edge(node, node)
+	return g
 
 
 # return a random graph of the requested type
@@ -184,7 +231,7 @@ def create_graph(gtype, n, m):
 		return g
 	elif gtype == 'lobster':
 		# TODO: allow better control over the graph structure in lobster graphs
-		g = random_lobster(n, m)
+		g = complete_lobster(n, m)
 		return g
 
 

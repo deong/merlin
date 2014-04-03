@@ -50,7 +50,6 @@ def write_instance(G, R):
 	n, m, k = R.shape
 	# number of nodes in the transition graph should be equal to
 	# the number of states in the reward matrix
-	print('{} {}'.format(G.number_of_nodes(), n))
 	assert(G.number_of_nodes() == n)
 	print("{} {} {}\n".format(n, m, k))
 	for node in G:
