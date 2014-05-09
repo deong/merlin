@@ -113,7 +113,6 @@ if __name__ == '__main__':
 		print('Error: covariance matrix must be positive definite', file=sys.stderr)
 		sys.exit(1)
 
-
 	# if we're generating a new model, we need to generate reward structures
 	# if args.type != 'perturbation':
 	# 	rewards = rwd.mvnrewards(args.states, args.actions, args.rmeans, cov)
@@ -127,10 +126,10 @@ if __name__ == '__main__':
 	if args.type == 'maze':
 		# TODO: incorporate correlated rewards somehow
 		maze = grd.make_multimaze(args.rows, args.cols, args.tasks)
-		goals = grd.maze_goal_states(maze)
+		goals = grd.maze_goal_states(maze, args.tasks, args.rmeans, cov)
 		io.write_maze_instance(maze, goals)
 		print('# type={}, rows={}, cols={}, correlation={}, stdev={}'.
-			  format(args.type, args.rows, args.col, args.correlation.tolist(), args.stdev.tolist()))
+			  format(args.type, args.rows, args.cols, args.correlation.tolist(), args.stdev.tolist()))
 
 
 	# perturbation of existing instances
