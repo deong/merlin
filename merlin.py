@@ -61,8 +61,8 @@ if __name__ == '__main__':
 	parser.add_argument('-d', '--dimensions', default=2,     help='dimensionality of the state vector', type=int)
 	parser.add_argument(      '--hidden',                    help='number of hidden units in the approximation network', type=int)
 	parser.add_argument(      '--rhidden',                   help='number of hidden units in the reward approximation network', type=int)
-	parser.add_argument(      '--transitions-net',           help='file to save the transition dynamics network to')
-	parser.add_argument(      '--rewards-net',               help='file to save the rewards network to')
+	parser.add_argument(      '--transitions-model',         help='file to save the transition dynamics model to')
+	parser.add_argument(      '--rewards-model',             help='file to save the rewards model to')
 	parser.add_argument(      '--transitions-dot',           help='name of the file to write the transition dynamics to in dot format')
 	parser.add_argument(      '--transitions-log',           help='name of the file to write training data and predictions to')
 	parser.add_argument(      '--rewards-log',               help='name of the file to write reward network training log to')
@@ -180,10 +180,10 @@ if __name__ == '__main__':
 		# TODO: allow control of range of action values
 		values.annotate_actions(G, (-2.0, 2.0))
 
-		if not args.transitions_net:
-			args.transitions_net = 'dynamics.model'
-		if not args.rewards_net:
-			args.rewards_net = 'rewards.model'
+		if not args.transitions_model:
+			args.transitions_model = 'dynamics.model'
+		if not args.rewards_model:
+			args.rewards_model = 'rewards.model'
 			
 		if args.model_type == 'nnet':
 			hidden_units = (args.dimensions + 2) * (args.dimensions + 2)
@@ -192,7 +192,7 @@ if __name__ == '__main__':
 	
 			print('Training neural network on state dynamics...this may take a while...', file=sys.stderr)
 			(nnet, traindata) = grp.make_continuous_mdp(G, args.dimensions, hidden_units, args.max_epochs)
-			io.write_neural_net(nnet, traindata, args.transitions_net)
+			io.write_neural_net(nnet, traindata, args.transitions_model)
 			if args.transitions_log:
 				io.write_train_log(nnet, traindata, args.transitions_log)
 
@@ -202,7 +202,7 @@ if __name__ == '__main__':
 	
 			print('Training neural network on reward function...this may take a while...', file=sys.stderr)
 			(reward_net, reward_data) = rwd.learn_reward_function(G, args.rhidden, args.max_epochs)
-			io.write_neural_net(reward_net, reward_data, args.rewards_net)
+			io.write_neural_net(reward_net, reward_data, args.rewards_model)
 			if args.rewards_log:
 				io.write_train_log(reward_net, reward_data, args.rewards_log)
 			
@@ -217,7 +217,7 @@ if __name__ == '__main__':
 				model, training_data = grp.build_svm_regression_model(G, dim, args.svm_C, args.svm_epsilon)
 				models.append(model)
 				training_sets.append(training_data)
-			io.write_svm_model(models, training_sets, args.transitions_net)
+			io.write_svm_model(models, training_sets, args.transitions_model)
 	
 			rmodels = []
 			rtraining_sets = []
@@ -226,7 +226,7 @@ if __name__ == '__main__':
 				model, training_data = rwd.learn_svm_reward_function(G, task, args.svm_C, args.svm_epsilon)
 				rmodels.append(model)
 				rtraining_sets.append(training_data)
-			io.write_svm_model(rmodels, rtraining_sets, args.rewards_net)
+			io.write_svm_model(rmodels, rtraining_sets, args.rewards_model)
 				
 			if args.transitions_log:
 				io.write_svm_train_log(models, training_sets, args.transitions_log)
@@ -241,7 +241,7 @@ if __name__ == '__main__':
 				model, training_data = grp.build_gp_regression_model(G, dim, args.theta0)
 				models.append(model)
 				training_sets.append(training_data)
-			io.write_gp_model(models, training_sets, args.transitions_net)
+			io.write_gp_model(models, training_sets, args.transitions_model)
 	
 			rmodels = []
 			rtraining_sets = []
@@ -250,7 +250,7 @@ if __name__ == '__main__':
 				model, training_data = rwd.learn_gp_reward_function(G, task, args.theta0)
 				rmodels.append(model)
 				rtraining_sets.append(training_data)
-			io.write_gp_model(rmodels, rtraining_sets, args.rewards_net)
+			io.write_gp_model(rmodels, rtraining_sets, args.rewards_model)
 				
 			if args.transitions_log:
 				io.write_svm_train_log(models, training_sets, args.transitions_log)
