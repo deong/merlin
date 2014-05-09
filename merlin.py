@@ -113,14 +113,6 @@ if __name__ == '__main__':
 		print('Error: covariance matrix must be positive definite', file=sys.stderr)
 		sys.exit(1)
 
-	# if we're generating a new model, we need to generate reward structures
-	# if args.type != 'perturbation':
-	# 	rewards = rwd.mvnrewards(args.states, args.actions, args.rmeans, cov)
-	# 	transition_graph = grp.rand_graph_uniform_degree(args.states, args.actions)
-	# 	io.write_instance(transition_graph, rewards)
-	# 	print('# type={}, states={}, actions={}, correlation={}, stdev={}'.
-	# 		  format(args.type, args.states, args.actions, args.correlation.tolist(), args.stdev.tolist()))
-
 
 	# maze type instances
 	if args.type == 'maze':

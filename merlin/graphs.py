@@ -102,7 +102,7 @@ def rand_graph_uniform_degree(nodes, edges):
 	# make sure all nodes have the correct number of outgoing edges
 	for node in tgraph:
 		assert(edges == len(tgraph.out_edges(node)))
-		
+
 	return tgraph
 
 

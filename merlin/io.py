@@ -55,15 +55,9 @@ def write_instance(G, R):
 	for node in G:
 		line = "{} ".format(node)
 		for index, (_, edge) in enumerate(G.out_edges(node)):
-			# note that the enumeration flattens out any duplicated
-			# edges; dups are fine for MDPs -- they just indicate two
-			# actions that lead to the same successor state. So we
-			# compensate for this by calculating the number of dups
-			# and explicitly repeating them the right number of times
-			for i in range(0, len(G[node][edge])):
-				line += "{} ".format(edge)
-				for task in range(0, k):
-					line += "{0:.3f} ".format(R[node, index, task])
+			line += "{} ".format(edge)
+			for task in range(0, k):
+				line += "{0:.3f} ".format(R[node, index, task])
 		print(line)
 	print("\n")
 
