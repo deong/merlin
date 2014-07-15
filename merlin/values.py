@@ -7,14 +7,14 @@
 #
 # This module defines functions for assigning state and action values
 # to nodes in the transition graph.
-# 
+#
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #     http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -27,6 +27,24 @@ import numpy as np
 import numpy.random as npr
 
 
+# annotate the given discrete graph
+#
+# parameters
+#   G: the state transition graph
+#
+def annotate_discrete_graph(G):
+	# label each state
+	for index, node in enumerate(G):
+		G.node[node]['state'] = [index]
+
+	# label each action
+	for node in G:
+		num_actions = len(G.out_edges(node))
+		for index, (_, succ, key) in enumerate(G.out_edges(node, keys=True)):
+			G.edge[node][succ][key]['action'] = index
+
+
+
 # annotate the given graph with state values for each node
 #
 # parameters:
@@ -34,7 +52,7 @@ import numpy.random as npr
 #   inpd: the desired dimension of the state space
 #   func_type: which type of landscape to generate {'fractal' or 'gaussian')
 #   ruggedness: parameter governing how  chaotic the changes are
-#   
+#
 def annotate_states(G, inpd, func_type, ruggedness):
 	if func_type == 'fractal':
 		func = make_fractal
@@ -101,7 +119,7 @@ def get_all_terminal_paths(G, s):
 		path = get_terminal_path(G, s, unvisited)
 		paths.append(path)
 	return paths
-		
+
 
 # get_terminal_path
 #
@@ -129,7 +147,7 @@ def get_terminal_path(G, s, unvisited):
 				break
 	return path
 
-			
+
 # map a real-valued action value onto each edge in the given transition graph
 #
 # tries to evenly distribute the action values in the allowed range so that you
@@ -139,7 +157,7 @@ def get_terminal_path(G, s, unvisited):
 # parameters:
 #   G: the state transition graph
 #   action_range: a tuple of (min, max) for action values
-#   
+#
 def annotate_actions(G, action_range):
 	for node in G:
 		num_actions = len(G.out_edges(node))
@@ -151,7 +169,7 @@ def annotate_actions(G, action_range):
 			G.edge[node][succ][key]['action'] = aval
 			min_val += step
 			max_val += step
-	
+
 
 # walk the graph and generate all state/action pairs
 #
@@ -178,7 +196,7 @@ def gen_state_action_pairs(G):
 #   seed: baseline value of the landscape
 # returns:
 #   a list of points mapping out landscape heights
-#   
+#
 def make_fractal(n, ruggedness, rng=1.0, seed=0):
 	points = [npr.random(), npr.random()]
 	return make_fractal_aux(n, points, ruggedness, rng)
@@ -207,7 +225,7 @@ def make_fractal_aux(n, points, ruggedness, rng):
 #   seed: the initial value along the walk
 # returns:
 #   a list of points mapping out the walk
-#   
+#
 def make_gaussian_walk(n, stdev, seed=0):
 	ys = []
 	for i in range(n):

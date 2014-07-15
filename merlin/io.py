@@ -7,14 +7,14 @@
 #
 # This module contains functions for reading and writing the generated
 # problems.
-# 
+#
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #     http://www.apache.org/licenses/LICENSE-2.0
-# 
+#
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -103,24 +103,24 @@ def write_maze_instance(maze, goals):
 #   maze: the input maze
 #   imgx: the horizontal size of the output file
 #   imgy: the vertical size of the output file
-#   
+#
 # def draw_multimaze(maze, imgx=600, imgy=600):
 #     my = len(maze)
 #     mx = len(maze[0])
-#     
+#
 #     image = Image.new("RGB", (imgx, imgy))
 #     pixels = image.load()
-# 
+#
 #     # count number of distinct paths through the maze
 #     # note that this counts the walls; hence the -1 on the end
 #     m = len(set.union(*[set(row) for row in maze])) - 1
-#     
+#
 #     color = [(0, 0, 0)] # RGB colors maze paths
 #     for i in range(m):
 #         color.append((random.randint(0, 255),
 #                       random.randint(0, 255),
 #                       random.randint(0, 255)))
-#         
+#
 #     for ky in range(imgy):
 #         for kx in range(imgx):
 #             pixels[kx, ky] = color[maze[int(my * ky / imgy)][int(mx * kx / imgx)]]
@@ -145,7 +145,7 @@ def write_neural_net(net, trainset, outf):
 #
 # parameters:
 #   inf: the name of the input file to read
-#   
+#
 def read_neural_net(inf):
 	nnetFile = open(inf, 'rb')
 	net = cPickle.load(nnetFile)
@@ -160,7 +160,7 @@ def read_neural_net(inf):
 #   nnet: a trained neural network predicting the transition dynamics
 #   training_set: a set of input/output pairs specifying the target dynamics
 #   outf: the name of a file to write the results to
-#   
+#
 def write_train_log(nnet, training_set, outf):
 	dynfile = open(outf, 'w')
 	for inp, target in training_set:
@@ -168,7 +168,7 @@ def write_train_log(nnet, training_set, outf):
 		entry = inp.tolist() + target.tolist() + approx.tolist()
 		dynfile.write("{}\n".format(" ".join([str(x) for x in entry])))
 	dynfile.close()
-		
+
 
 
 # write the dynamics of the trained network along with the "real" dynamics"
@@ -177,7 +177,7 @@ def write_train_log(nnet, training_set, outf):
 #   nnet: a trained neural network predicting the transition dynamics
 #   training_set: a set of input/output pairs specifying the target dynamics
 #   outf: the name of a file to write the results to
-#   
+#
 def write_svm_train_log(models, training_sets, outf):
 	dynfile = open(outf, 'w')
 	outputs = {}
@@ -201,7 +201,7 @@ def write_svm_train_log(models, training_sets, outf):
 				line += [outputs[j][i]]
 			dynfile.write("{}\n".format(" ".join([str(x) for x in line])))
 	dynfile.close()
-		
+
 
 
 # write out a series of trained support vector regression models with training data
@@ -210,7 +210,7 @@ def write_svm_train_log(models, training_sets, outf):
 #   models: list of trained SVR models
 #   datasets: list of lists of [x, y] training data sets
 #   outf: the name of the file to write the models to
-#   
+#
 def write_svm_model(models, datasets, outf):
 	svmFile = open(outf, 'wb')
 	cPickle.dump(models, svmFile)
@@ -239,7 +239,7 @@ def read_svm_model(inf):
 #   models: list of trained GP models
 #   datasets: list of lists of [x, y] training data sets
 #   outf: the name of the file to write the models to
-#   
+#
 def write_gp_model(models, datasets, outf):
 	gpFile = open(outf, 'wb')
 	cPickle.dump(models, gpFile)
@@ -267,7 +267,7 @@ def read_gp_model(inf):
 # parameters:
 #   G: the graph to output
 #   outputfile: the name of the graphiz (dot) file to output to
-#   
+#
 def output_dot(G, outputfile):
 	f = open(outputfile, 'w')
 	f.write('digraph mdp {\n')
@@ -290,4 +290,4 @@ def output_dot(G, outputfile):
 
 	f.write('}\n')
 	f.close()
-										   
+

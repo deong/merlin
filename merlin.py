@@ -45,7 +45,7 @@ if __name__ == '__main__':
 	parser.add_argument(      '--graph-type',                help='graph generation algorithm for state transition function', choices=['random','maze','lobster'])
 	parser.add_argument(      '--model-type',                help='generative model type for continuous problems', choices=['nnet','svm','gp'])
 	parser.add_argument(      '--landscape-type',            help='type of model for mapping values onto states', choices=['fractal','gaussian'])
-							  
+
 	parser.add_argument('-n', '--states',	  default=100,	 help='size of the state space', type=int)
 	parser.add_argument('-m', '--actions',	  default=4,	 help='number of available actions', type=int)
 	parser.add_argument('-k', '--tasks',	  default=2,	 help='number of concurrent tasks', type=int)
@@ -56,7 +56,7 @@ if __name__ == '__main__':
 	parser.add_argument('-y', '--cols',		  default=10,	 help='columns in random maze', type=int)
 	parser.add_argument(      '--ruggedness', default=0.7,   help='ruggedness of the state-transition functions in continuous models', type=float)
 	parser.add_argument(      '--landscape-scale', default=1.0, help='scale factor for state-value functions', type=float)
-							  
+
 	# neural net parameters
 	parser.add_argument('-d', '--dimensions', default=2,     help='dimensionality of the state vector', type=int)
 	parser.add_argument(      '--hidden',                    help='number of hidden units in the approximation network', type=int)
@@ -79,7 +79,7 @@ if __name__ == '__main__':
 
 	# gaussian process parameters
 	parser.add_argument(      '--theta0',     default=0.5,   help='default parameters of the autocorrelation model', type=float)
-	
+
 	args = parser.parse_args()
 
 
@@ -93,20 +93,20 @@ if __name__ == '__main__':
 		args.correlation = np.identity(args.tasks)
 	else:
 		args.correlation = np.asarray(ast.literal_eval(args.correlation))
-		
+
 	# get the target mean vector for rewards. If not given, assume zero means
 	if not args.rmeans:
 		args.rmeans = np.zeros(args.tasks)
 	else:
 		args.rmeans = np.asarray(ast.literal_eval(args.rmeans))
-		
+
 	# read standard deviation for the rewards for each task. If not given, assume
 	# unit standard deviations
 	if not args.stdev:
 		args.stdev = np.ones(args.tasks)
 	else:
 		args.stdev = np.asarray(ast.literal_eval(args.stdev))
-		
+
 	# compute a covariance matrix from the correlation matrix and standard deviations
 	cov = rwd.cor2cov(args.correlation, args.stdev)
 	if not rwd.is_pos_def(cov):
@@ -151,11 +151,16 @@ if __name__ == '__main__':
 		# actual number of nodes in a lobster is stochastic
 		args.states = transition_graph.number_of_nodes()
 		rewards = rwd.mvnrewards(args.states, args.actions, args.rmeans, cov)
-		
+
 		io.write_instance(transition_graph, rewards)
 		print('# type={}, states={}, actions={}, correlation={}, stdev={}'.
 			  format(args.type, args.states, args.actions, args.correlation.tolist(), args.stdev.tolist()))
 
+		values.annotate_discrete_graph(transition_graph)
+		if args.transitions_dot:
+			#io.output_dot(transition_graph, args.transitions_dot)
+			with open(args.transitions_dot, 'w') as f:
+				nx.write_dot(transition_graph, f)
 
 	# for continuous instances, we need to generate discrete state transition graphs and rewards,
 	# and then learn continuous approximations to the discrete models
@@ -184,12 +189,12 @@ if __name__ == '__main__':
 			args.transitions_model = 'dynamics.model'
 		if not args.rewards_model:
 			args.rewards_model = 'rewards.model'
-			
+
 		if args.model_type == 'nnet':
 			hidden_units = (args.dimensions + 2) * (args.dimensions + 2)
 			if args.hidden:
 				hidden_units = int(args.hidden)
-	
+
 			print('Training neural network on state dynamics...this may take a while...', file=sys.stderr)
 			(nnet, traindata) = grp.make_continuous_mdp(G, args.dimensions, hidden_units, args.max_epochs)
 			io.write_neural_net(nnet, traindata, args.transitions_model)
@@ -199,16 +204,16 @@ if __name__ == '__main__':
 			# train on the reward function
 			if not args.rhidden:
 				args.rhidden = (args.dimensions + 2) * (args.tasks + 2)
-	
+
 			print('Training neural network on reward function...this may take a while...', file=sys.stderr)
 			(reward_net, reward_data) = rwd.learn_reward_function(G, args.rhidden, args.max_epochs)
 			io.write_neural_net(reward_net, reward_data, args.rewards_model)
 			if args.rewards_log:
 				io.write_train_log(reward_net, reward_data, args.rewards_log)
-			
+
 			if args.transitions_dot:
 				io.output_dot(G, args.transitions_dot)
-	
+
 		elif args.model_type == 'svm':
 			models = []
 			training_sets = []
@@ -218,7 +223,7 @@ if __name__ == '__main__':
 				models.append(model)
 				training_sets.append(training_data)
 			io.write_svm_model(models, training_sets, args.transitions_model)
-	
+
 			rmodels = []
 			rtraining_sets = []
 			for task in range(args.tasks):
@@ -227,12 +232,12 @@ if __name__ == '__main__':
 				rmodels.append(model)
 				rtraining_sets.append(training_data)
 			io.write_svm_model(rmodels, rtraining_sets, args.rewards_model)
-				
+
 			if args.transitions_log:
 				io.write_svm_train_log(models, training_sets, args.transitions_log)
 			if args.rewards_log:
 				io.write_svm_train_log(rmodels, rtraining_sets, args.rewards_log)
-	
+
 		elif args.model_type == 'gp':
 			models = []
 			training_sets = []
@@ -242,7 +247,7 @@ if __name__ == '__main__':
 				models.append(model)
 				training_sets.append(training_data)
 			io.write_gp_model(models, training_sets, args.transitions_model)
-	
+
 			rmodels = []
 			rtraining_sets = []
 			for task in range(args.tasks):
@@ -251,7 +256,7 @@ if __name__ == '__main__':
 				rmodels.append(model)
 				rtraining_sets.append(training_data)
 			io.write_gp_model(rmodels, rtraining_sets, args.rewards_model)
-				
+
 			if args.transitions_log:
 				io.write_svm_train_log(models, training_sets, args.transitions_log)
 			if args.rewards_log:
@@ -261,11 +266,11 @@ if __name__ == '__main__':
 			print('invalid model_type specified: {}', args.model_type)
 			parser.print_help()
 			sys.exit(1)
-			
+
 	else:
 		print('invalid problem type specified: {}', args.type)
 		parser.print_help()
 		sys.exit(1)
-		
-		
+
+
 
