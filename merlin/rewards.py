@@ -25,6 +25,7 @@ from __future__ import print_function
 import numpy as np
 import numpy.random as npr
 import scipy.linalg as sla
+import scipy.stats as sst
 import pybrain.datasets
 import pybrain.tools.shortcuts
 import pybrain.supervised.trainers
@@ -35,25 +36,25 @@ import sklearn.gaussian_process as gp
 # create random reward structure for an (nstates, nactions) MDP
 #
 # parameters:
-#	nstates:  number of states
-#	nactions: number of actions
-#	covmat:	  nxn covariance matrix, where n=number of tasks
+#   nstates:  number of states
+#   nactions: number of actions
+#   covmat:   nxn covariance matrix, where n=number of tasks
 # returns:
-#	an (nstates x nactions x ntasks) reward matrix
+#   an (nstates x nactions x ntasks) reward matrix
 #
 def mvnrewards(nstates, nactions, mu, covmat):
-	"""Create a random reward structure for an (nstates, nactions) MDP
-	where the rewards for each pair of tasks are correlated according
-	to the specified covariance matrix."""
-	# make sure covmat is positive definite; raise an exception if it
-	# isn't. Note that the multivariate_normal call succeeds either way
-	# but the results aren't physically meaningful if the matrix isn't
-	# semi-positive definite, and we'd rather bail than generate data
-	# that doesn't match what the user asked for.
-	sla.cholesky(covmat)
-	ntasks = covmat.shape[0]
-	rewards = npr.multivariate_normal(mu, covmat, (nstates, nactions))
-	return rewards
+    """Create a random reward structure for an (nstates, nactions) MDP
+    where the rewards for each pair of tasks are correlated according
+    to the specified covariance matrix."""
+    # make sure covmat is positive definite; raise an exception if it
+    # isn't. Note that the multivariate_normal call succeeds either way
+    # but the results aren't physically meaningful if the matrix isn't
+    # semi-positive definite, and we'd rather bail than generate data
+    # that doesn't match what the user asked for.
+    sla.cholesky(covmat)
+    ntasks = covmat.shape[0]
+    rewards = npr.multivariate_normal(mu, covmat, (nstates, nactions))
+    return rewards
 
 
 
@@ -67,7 +68,7 @@ def mvnrewards(nstates, nactions, mu, covmat):
 #   a covariance matrix matching the input specifications
 #   
 def cor2cov(R, sigma):
-	return np.diag(sigma).dot(R).dot(np.diag(sigma))
+    return np.diag(sigma).dot(R).dot(np.diag(sigma))
 
 
 
@@ -80,11 +81,11 @@ def cor2cov(R, sigma):
 #   True if A is positive definite, false otherwise
 #
 def is_pos_def(A):
-	try:
-		sla.cholesky(A)
-	except sla.LinAlgError:
-		return False
-	return True
+    try:
+        sla.cholesky(A)
+    except sla.LinAlgError:
+        return False
+    return True
 
 #
 # learn an approximation model for the given reward function
@@ -97,30 +98,28 @@ def is_pos_def(A):
 #   a trained neural network 
 #
 def learn_reward_function(G, hidden_units, max_epochs):
-	# grab any node and use it to find the dimensionality of the state space
-	dim = len(G.node[0]['state'])
-	
-	# grab any edge and use it to find the dimensionality of the reward space
-	(src, dest, key) = G.edges(keys=True)[0]
-	num_tasks = len(G.edge[src][dest][key]['reward'])
-	
-	training_set = pybrain.datasets.SupervisedDataSet(dim + 1, num_tasks)
-	
-	# for each node in the graph, map the state + action onto a reward
-	for state_index, node in enumerate(G):
-		s = G.node[node]['state']
-		for action_index, (_, succ, key) in enumerate(G.out_edges(node, keys=True)):
-			a = G.edge[node][succ][key]['action']
-			training_set.addSample(np.append(s, a), G.edge[node][succ][key]['reward'])
-	
-	# finally, create a train a network
-	nnet = pybrain.tools.shortcuts.buildNetwork(dim + 1, hidden_units, num_tasks, bias=True)
-	trainer = pybrain.supervised.trainers.BackpropTrainer(nnet, training_set)
-	errors = trainer.trainUntilConvergence(maxEpochs=max_epochs)
-	
-	return (nnet, training_set)
-
-
+    # grab any node and use it to find the dimensionality of the state space
+    dim = len(G.node[0]['state'])
+    
+    # grab any edge and use it to find the dimensionality of the reward space
+    (src, dest, key) = G.edges(keys=True)[0]
+    num_tasks = len(G.edge[src][dest][key]['reward'])
+    
+    training_set = pybrain.datasets.SupervisedDataSet(dim + 1, num_tasks)
+    
+    # for each node in the graph, map the state + action onto a reward
+    for state_index, node in enumerate(G):
+        s = G.node[node]['state']
+        for action_index, (_, succ, key) in enumerate(G.out_edges(node, keys=True)):
+            a = G.edge[node][succ][key]['action']
+            training_set.addSample(np.append(s, a), G.edge[node][succ][key]['reward'])
+    
+    # finally, create a train a network
+    nnet = pybrain.tools.shortcuts.buildNetwork(dim + 1, hidden_units, num_tasks, bias=True)
+    trainer = pybrain.supervised.trainers.BackpropTrainer(nnet, training_set)
+    errors = trainer.trainUntilConvergence(maxEpochs=max_epochs)
+    
+    return (nnet, training_set)
 
 
 # learn an approximation to the reward function using support vector regression
@@ -134,18 +133,17 @@ def learn_reward_function(G, hidden_units, max_epochs):
 #   a tuple of the trained model along with the training data set
 #
 def learn_svm_reward_function(G, task, C, epsilon):
-	model = svm.SVR()
-	xs = []
-	ys = []
-	for node in G:
-		for (_, succ, key) in G.out_edges(node, keys=True):
-			xs.append(list(G.node[node]['state']) + [G.edge[node][succ][key]['action']])
-			ys.append(G.edge[node][succ][key]['reward'][task])
-	xs = np.asarray(xs)
-	ys = np.asarray(ys)
-	return (model.fit(xs, ys), (xs, ys))
-	
-
+    model = svm.SVR()
+    xs = []
+    ys = []
+    for node in G:
+        for (_, succ, key) in G.out_edges(node, keys=True):
+            xs.append(list(G.node[node]['state']) + [G.edge[node][succ][key]['action']])
+            ys.append(G.edge[node][succ][key]['reward'][task])
+    xs = np.asarray(xs)
+    ys = np.asarray(ys)
+    return (model.fit(xs, ys), (xs, ys))
+    
 
 # learn an approximation to the reward function using gaussian processes
 #
@@ -157,20 +155,17 @@ def learn_svm_reward_function(G, task, C, epsilon):
 #   a tuple of the trained model along with the training data set
 #
 def learn_gp_reward_function(G, task, theta0):
-	model = gp.GaussianProcess(theta0=theta0)
-	xs = []
-	ys = []
-	for node in G:
-		for (_, succ, key) in G.out_edges(node, keys=True):
-			xs.append(list(G.node[node]['state']) + [G.edge[node][succ][key]['action']])
-			ys.append(G.edge[node][succ][key]['reward'][task])
-	xs = np.asarray(xs)
-	ys = np.asarray(ys)
-	return (model.fit(xs, ys), (xs, ys))
-	
+    model = gp.GaussianProcess(theta0=theta0)
+    xs = []
+    ys = []
+    for node in G:
+        for (_, succ, key) in G.out_edges(node, keys=True):
+            xs.append(list(G.node[node]['state']) + [G.edge[node][succ][key]['action']])
+            ys.append(G.edge[node][succ][key]['reward'][task])
+    xs = np.asarray(xs)
+    ys = np.asarray(ys)
+    return (model.fit(xs, ys), (xs, ys))
 
-
-	
 
 # write the reward information directly into the graph as an annotation on the edges
 #
@@ -179,6 +174,22 @@ def learn_gp_reward_function(G, task, theta0):
 #   rewards: an nxmxk matrix of rewards, one for each state-action pair
 #   
 def annotate_rewards(G, rewards):
-	for i, node in enumerate(G):
-		for j, (_, succ, key) in enumerate(G.out_edges(node, keys=True)):
-			G.edge[node][succ][key]['reward'] = rewards[i,j]
+    for i, node in enumerate(G):
+        for j, (_, succ, key) in enumerate(G.out_edges(node, keys=True)):
+            G.edge[node][succ][key]['reward'] = rewards[i,j]
+
+
+# return the pearson correlation coefficients between each objective
+#
+# parameters:
+#   D: the data matrix containing the reward information
+# 
+def correlation(D):
+    n, m, k = D.shape
+    corr = np.zeros([k, k])
+    for i in range(0, k):
+        for j in range(0, k):
+            x = np.reshape(D[:,:,i], n*m)
+            y = np.reshape(D[:,:,j], n*m)
+            corr[i, j] = (sst.pearsonr(x,y)[0])
+    return corr
