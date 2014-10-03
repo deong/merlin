@@ -158,7 +158,7 @@ if __name__ == '__main__':
 
         # calculate some summary statistics on the instance
         rewards_est = rwd.correlation(rewards)
-        print('\nSummary Statistics')
+        print('\n# Summary Statistics')
         print('# actual R={}'.format(rewards_est.tolist()))
 
         values.annotate_discrete_graph(transition_graph)
