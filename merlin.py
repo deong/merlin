@@ -42,7 +42,7 @@ if __name__ == '__main__':
     #   parser.add_argument('-t', '--type',       default=None,  help='problem instance type (required)', choices=['garnet', 'randgraph', 'maze', 'nnet', 'fuzzed', 'svm', 'gp'])
 
     parser.add_argument('-t', '--type',                      help='type of generated instance', choices=['discrete','continuous','perturbation','maze'])
-    parser.add_argument(      '--graph-type',                help='graph generation algorithm for state transition function', choices=['random','maze','lobster'])
+    parser.add_argument(      '--graph-type',                help='graph generation algorithm for state transition function', choices=['random','maze','lobster', 'fern'])
     parser.add_argument(      '--model-type',                help='generative model type for continuous problems', choices=['nnet','svm','gp'])
     parser.add_argument(      '--landscape-type',            help='type of model for mapping values onto states', choices=['fractal','gaussian'])
                               
@@ -56,7 +56,12 @@ if __name__ == '__main__':
     parser.add_argument('-y', '--cols',       default=10,    help='columns in random maze', type=int)
     parser.add_argument(      '--ruggedness', default=0.7,   help='ruggedness of the state-transition functions in continuous models', type=float)
     parser.add_argument(      '--landscape-scale', default=1.0, help='scale factor for state-value functions', type=float)
-                              
+
+    # for fern graphs
+    parser.add_argument(      '--frond-probability', default=0.5, help='probability of adding a frond to the fern backbond', type=float)
+    parser.add_argument(      '--frond-size',                help='number of nodes to create in each generated frond', type=int)
+    parser.add_argument(      '--frond-actions',             help='number of edges to create from each node in the frond', type=int)
+    
     # neural net parameters
     parser.add_argument('-d', '--dimensions', default=2,     help='dimensionality of the state vector', type=int)
     parser.add_argument(      '--hidden',                    help='number of hidden units in the approximation network', type=int)
@@ -144,12 +149,23 @@ if __name__ == '__main__':
             parser.print_help()
             sys.exit(1)
 
+        params = None
+        if args.graph_type == 'fern':
+            params = {'frond_probability': args.frond_probability,
+                      'frond_size': args.frond_size,
+                      'frond_actions': args.frond_actions}
+        
         if args.graph_type == 'lobster':
             args.actions = 3
-        transition_graph = grp.create_graph(args.graph_type, args.states, args.actions)
-        # TODO: fix discrete lobster generation
-        # actual number of nodes in a lobster is stochastic
+        
+        transition_graph = grp.create_graph(args.graph_type, args.states, args.actions, params)
+
+        # some of the graph types might add nodes and edges, so we should recalculate the
+        # graph size before continuing
         args.states = transition_graph.number_of_nodes()
+        args.actions = max(transition_graph.out_degree().values())
+
+        # create the reward structures
         rewards = rwd.mvnrewards(args.states, args.actions, args.rmeans, cov)
 
         io.write_instance(transition_graph, rewards)

@@ -218,13 +218,66 @@ def random_lobster(nodes, edges):
     return g
 
 
+# return a random fern graph
+#
+# parameters:
+#   nodes: number of nodes along the spine
+#   edges: (ignored)
+#
+# adapted from the networkx random_lobster method to remove the stochasticity
+# in the length of the spine
+def random_fern(backbone_len, p, frond_size, frond_actions, seed=None):
+    if seed is not None:
+        random.seed(seed)
+    L=nx.path_graph(backbone_len)
+    g = nx.MultiDiGraph(L) # voila, un lobster!
+
+    # build fern: along the backbone, add links (with probability p)
+    # to entire random subgraphs that are otherwise unconnected to the
+    # spine or each other.
+    for i in xrange(backbone_len-1):
+        if random.random()>=p:
+            continue
+        next_node_index = g.number_of_nodes()
+        frond = rand_graph_uniform_degree(frond_size, frond_actions)
+        frond = make_strongly_connected(frond)
+        g = nx.disjoint_union(g, frond)
+        g.add_edge(i, next_node_index)
+        g.add_edge(next_node_index, i)
+
+        # somehow it's possible to get nodes with no incoming edges.
+        # fix that by checking connectivity to each newly added node
+        # from the 0 node, and add edges if necessary.
+        for node in xrange(next_node_index, g.number_of_nodes()):
+            if not nx.has_path(g, 0, node):
+                g.add_edge(node-1, node)
+                # try to delete a redundant edge from the parent
+                if g.has_edge(node-1, node-1):
+                    g.remove_edge(node-1, node-1)
+                    
+    for node in g:
+        # if it's a leaf node, add a self edge and an edge back to the spine
+        if len(g.out_edges(node)) == 1:
+            knee = g.in_edges(node)[0][0]
+            knee_edges = sorted(g.in_edges(knee))
+            spine = knee_edges[0][0]
+            if not g.has_edge(node,spine):
+                g.add_edge(node, spine)
+        if len(g.out_edges(node)) == 2:
+            if not g.has_edge(node, node):
+                g.add_edge(node, node)
+    return g
+
+
 # return a random graph of the requested type
 #
 # parameters:
 #   gtype: the type of graph to create
 #   n:     number of nodes in the graph
 #   m:     number of edges from each node
-def create_graph(gtype, n, m):
+#   params: dictionary of additional parameters
+#
+def create_graph(gtype, n, m, params):
     if gtype == 'random':
         g = rand_graph_uniform_degree(n, m)
         g = make_strongly_connected(g)
@@ -232,6 +285,10 @@ def create_graph(gtype, n, m):
     elif gtype == 'lobster':
         # TODO: allow better control over the graph structure in lobster graphs
         g = complete_lobster(n, m)
+        return g
+    elif gtype == 'fern':
+        g = random_fern(n, params['frond_probability'],
+                        params['frond_size'], params['frond_actions'])
         return g
 
 
