@@ -11,11 +11,19 @@ Requires python2 and the following packages:
 - networkx
 - scikit-learn
 - pybrain (temporarily)
+- pygraphviz if you want to use Dot to visualize graphs
 
 Merlin should work under python3 as well, but many of the required packages are
 hard to find and get working in python3, so python2.7 current gets the most
 testing.
 
+PyGraphviz is unsupported on Windows. You could try the unofficial installers
+here: http://www.lfd.uci.edu/~gohlke/pythonlibs/#pygraphviz
+If that doesn't work, see the following websites:
+http://stackoverflow.com/questions/2798858/installing-pygraphviz-on-windows-python-2-6
+http://stackoverflow.com/questions/4571067/installing-pygraphviz-on-windows/7537047
+https://networkx.lanl.gov/trac/ticket/491
+https://networkx.lanl.gov/trac/ticket/117
 
 ## Usage
 
