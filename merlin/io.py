@@ -43,23 +43,23 @@ import cPickle
 # -------------------------------------------------------------
 #
 # parameters:
-#	G: state transition graph
-#	R: reward structure
+#   G: state transition graph
+#   R: reward structure
 #
 def write_instance(G, R):
-	n, m, k = R.shape
-	# number of nodes in the transition graph should be equal to
-	# the number of states in the reward matrix
-	assert(G.number_of_nodes() == n)
-	print("{} {} {}\n".format(n, m, k))
-	for node in G:
-		line = "{} ".format(node)
-		for index, (_, edge) in enumerate(G.out_edges(node)):
-			line += "{} ".format(edge)
-			for task in range(0, k):
-				line += "{0:.3f} ".format(R[node, index, task])
-		print(line)
-	print("\n")
+    n, m, k = R.shape
+    # number of nodes in the transition graph should be equal to
+    # the number of states in the reward matrix
+    assert(G.number_of_nodes() == n)
+    print("{} {} {}\n".format(n, m, k))
+    for node in G:
+        line = "{} ".format(node)
+        for index, (_, edge) in enumerate(G.out_edges(node)):
+            line += "{} ".format(edge)
+            for task in range(0, k):
+                line += "{0:.3f} ".format(R[node, index, task])
+        print(line)
+    print("\n")
 
 
 #
@@ -72,28 +72,28 @@ def write_instance(G, R):
 # for the mazes.
 #
 def write_maze_instance(maze, goals):
-	tasks, rows, cols = goals.shape
-	print("{} {} {}\n".format(rows*cols, 4, tasks))
+    tasks, rows, cols = goals.shape
+    print("{} {} {}\n".format(rows*cols, 4, tasks))
 
-	for row in range(rows):
-		for col in range(cols):
-			node_num = grd.rowcol_to_index(maze, row, col)
-			line = "{} ".format(node_num)
+    for row in range(rows):
+        for col in range(cols):
+            node_num = grd.rowcol_to_index(maze, row, col)
+            line = "{} ".format(node_num)
 
-			# order of actions is up, down, left, right
-			neighbors = [(x, col) for x in [row-1, row+1]] + [(row, y) for y in [col-1, col+1]]
-			for action, (x,y) in enumerate(neighbors):
-				target = grd.rowcol_to_index(maze, x, y)
-				if target != None:
-					line += "{} ".format(target)
-					for task in range(tasks):
-						line += "{} ".format(goals[task, x, y])
-				else:
-					line += "{} ".format(node_num)
-					for task in range(tasks):
-						line += "{} ".format(-10)
-			print(line)
-	print("\n")
+            # order of actions is up, down, left, right
+            neighbors = [(x, col) for x in [row-1, row+1]] + [(row, y) for y in [col-1, col+1]]
+            for action, (x,y) in enumerate(neighbors):
+                target = grd.rowcol_to_index(maze, x, y)
+                if target != None:
+                    line += "{} ".format(target)
+                    for task in range(tasks):
+                        line += "{} ".format(goals[task, x, y])
+                else:
+                    line += "{} ".format(node_num)
+                    for task in range(tasks):
+                        line += "{} ".format(-10)
+            print(line)
+    print("\n")
 
 
 
@@ -135,10 +135,10 @@ def write_maze_instance(maze, goals):
 #   outf: the name of the file to write the network to
 #
 def write_neural_net(net, trainset, outf):
-	nnetFile = open(outf, 'wb')
-	cPickle.dump(net, nnetFile)
-	cPickle.dump(trainset, nnetFile)
-	nnetFile.close()
+    nnetFile = open(outf, 'wb')
+    cPickle.dump(net, nnetFile)
+    cPickle.dump(trainset, nnetFile)
+    nnetFile.close()
 
 
 # read back in a trained neural network and return it
@@ -147,10 +147,10 @@ def write_neural_net(net, trainset, outf):
 #   inf: the name of the input file to read
 #
 def read_neural_net(inf):
-	nnetFile = open(inf, 'rb')
-	net = cPickle.load(nnetFile)
-	trainset = cPickle.load(nnetFile)
-	return (net, trainset)
+    nnetFile = open(inf, 'rb')
+    net = cPickle.load(nnetFile)
+    trainset = cPickle.load(nnetFile)
+    return (net, trainset)
 
 
 
@@ -162,12 +162,12 @@ def read_neural_net(inf):
 #   outf: the name of a file to write the results to
 #
 def write_train_log(nnet, training_set, outf):
-	dynfile = open(outf, 'w')
-	for inp, target in training_set:
-		approx = nnet.activate(inp)
-		entry = inp.tolist() + target.tolist() + approx.tolist()
-		dynfile.write("{}\n".format(" ".join([str(x) for x in entry])))
-	dynfile.close()
+    dynfile = open(outf, 'w')
+    for inp, target in training_set:
+        approx = nnet.activate(inp)
+        entry = inp.tolist() + target.tolist() + approx.tolist()
+        dynfile.write("{}\n".format(" ".join([str(x) for x in entry])))
+    dynfile.close()
 
 
 
@@ -179,28 +179,28 @@ def write_train_log(nnet, training_set, outf):
 #   outf: the name of a file to write the results to
 #
 def write_svm_train_log(models, training_sets, outf):
-	dynfile = open(outf, 'w')
-	outputs = {}
-	targets = {}
-	for task, (inp, outp) in enumerate(training_sets):
-		out = []
-		tar = []
-		for i in range(len(inp)):
-			out.append(models[task].predict(inp[i])[0])
-			tar.append(outp[i])
-		outputs[task] = out
-		targets[task] = tar
+    dynfile = open(outf, 'w')
+    outputs = {}
+    targets = {}
+    for task, (inp, outp) in enumerate(training_sets):
+        out = []
+        tar = []
+        for i in range(len(inp)):
+            out.append(models[task].predict(inp[i])[0])
+            tar.append(outp[i])
+        outputs[task] = out
+        targets[task] = tar
 
-	# now we hae outputs and targets as tasksXinputs matrices of data
-	for task, (inp, outp) in enumerate(training_sets):
-		for i in range(len(inp)):
-			line = inp[i].tolist()
-			for j in range(len(targets)):
-				line += [targets[j][i]]
-			for j in range(len(outputs)):
-				line += [outputs[j][i]]
-			dynfile.write("{}\n".format(" ".join([str(x) for x in line])))
-	dynfile.close()
+    # now we hae outputs and targets as tasksXinputs matrices of data
+    for task, (inp, outp) in enumerate(training_sets):
+        for i in range(len(inp)):
+            line = inp[i].tolist()
+            for j in range(len(targets)):
+                line += [targets[j][i]]
+            for j in range(len(outputs)):
+                line += [outputs[j][i]]
+            dynfile.write("{}\n".format(" ".join([str(x) for x in line])))
+    dynfile.close()
 
 
 
@@ -212,10 +212,10 @@ def write_svm_train_log(models, training_sets, outf):
 #   outf: the name of the file to write the models to
 #
 def write_svm_model(models, datasets, outf):
-	svmFile = open(outf, 'wb')
-	cPickle.dump(models, svmFile)
-	cPickle.dump(datasets, svmFile)
-	svmFile.close()
+    svmFile = open(outf, 'wb')
+    cPickle.dump(models, svmFile)
+    cPickle.dump(datasets, svmFile)
+    svmFile.close()
 
 
 
@@ -225,11 +225,11 @@ def write_svm_model(models, datasets, outf):
 #   inf: the name of the input file to read
 #
 def read_svm_model(inf):
-	svmFile = open(inf, 'rb')
-	models = cPickle.load(svmFile)
-	datasets = cPickle.load(svmFile)
-	svmFile.close()
-	return (models, datasets)
+    svmFile = open(inf, 'rb')
+    models = cPickle.load(svmFile)
+    datasets = cPickle.load(svmFile)
+    svmFile.close()
+    return (models, datasets)
 
 
 
@@ -241,10 +241,10 @@ def read_svm_model(inf):
 #   outf: the name of the file to write the models to
 #
 def write_gp_model(models, datasets, outf):
-	gpFile = open(outf, 'wb')
-	cPickle.dump(models, gpFile)
-	cPickle.dump(datasets, gpFile)
-	gpFile.close()
+    gpFile = open(outf, 'wb')
+    cPickle.dump(models, gpFile)
+    cPickle.dump(datasets, gpFile)
+    gpFile.close()
 
 
 
@@ -254,11 +254,11 @@ def write_gp_model(models, datasets, outf):
 #   inf: the name of the input file to read
 #
 def read_gp_model(inf):
-	gpFile = open(inf, 'rb')
-	models = cPickle.load(gpFile)
-	datasets = cPickle.load(gpFile)
-	gpFile.close()
-	return (models, datasets)
+    gpFile = open(inf, 'rb')
+    models = cPickle.load(gpFile)
+    datasets = cPickle.load(gpFile)
+    gpFile.close()
+    return (models, datasets)
 
 
 
@@ -269,25 +269,25 @@ def read_gp_model(inf):
 #   outputfile: the name of the graphiz (dot) file to output to
 #
 def output_dot(G, outputfile):
-	f = open(outputfile, 'w')
-	f.write('digraph mdp {\n')
-	f.write('rankdir=LR;\n')
-	# f.write('rotate=90;\n')
+    f = open(outputfile, 'w')
+    f.write('digraph mdp {\n')
+    f.write('rankdir=LR;\n')
+    # f.write('rotate=90;\n')
 
-	# first write the nodes
-	for i, node in enumerate(G):
-		vals = [round(x, 3) for x in G.node[node]['state']]
-		label = str(vals)
-		if i == 0:
-			f.write('{} [label=\"{}\", shape=box];\n'.format(i, label))
-		else:
-			f.write('{} [label=\"{}\"];\n'.format(i, label))
+    # first write the nodes
+    for i, node in enumerate(G):
+        vals = [round(x, 3) for x in G.node[node]['state']]
+        label = str(vals)
+        if i == 0:
+            f.write('{} [label=\"{}\", shape=box];\n'.format(i, label))
+        else:
+            f.write('{} [label=\"{}\"];\n'.format(i, label))
 
-	# and then the edges
-	for i, node in enumerate(G):
-		for j, (_, succ, key) in enumerate(G.out_edges(node, keys=True)):
-			f.write('{} -> {} [label=\"{:.3f}\"];\n'.format(i, j, G.edge[node][succ][key]['action']))
+    # and then the edges
+    for i, node in enumerate(G):
+        for j, (_, succ, key) in enumerate(G.out_edges(node, keys=True)):
+            f.write('{} -> {} [label=\"{:.3f}\"];\n'.format(i, j, G.edge[node][succ][key]['action']))
 
-	f.write('}\n')
-	f.close()
+    f.write('}\n')
+    f.close()
 

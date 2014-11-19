@@ -39,8 +39,8 @@ import pybrain.supervised.trainers
 #   the output of the network given the state/action pair
 # 
 def activation(tnet, state, action):
-	inp = np.append(state, action)
-	return tnet.activate(inp)
+    inp = np.append(state, action)
+    return tnet.activate(inp)
 
 
 # randomly change fuzz_factor percent of the weights of the given network
@@ -51,7 +51,7 @@ def activation(tnet, state, action):
 #   scale: the amount to change the selected weights by
 #   
 def fuzz_neural_net(net, frac, scale):
-	weights = net.params
-	fweights = [x if npr.random() >= frac else npr.normal(x, scale) for x in weights]
-	net._setParameters(fweights)
-	return net
+    weights = net.params
+    fweights = [x if npr.random() >= frac else npr.normal(x, scale) for x in weights]
+    net._setParameters(fweights)
+    return net

@@ -36,11 +36,8 @@ import merlin.net as net
 import cPickle
 
 
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    #   parser.add_argument('-t', '--type',       default=None,  help='problem instance type (required)', choices=['garnet', 'randgraph', 'maze', 'nnet', 'fuzzed', 'svm', 'gp'])
-
     parser.add_argument('-t', '--type',                      help='type of generated instance', choices=['discrete','continuous','perturbation','maze'])
     parser.add_argument(      '--graph-type',                help='graph generation algorithm for state transition function', choices=['random','maze','lobster', 'fern'])
     parser.add_argument(      '--model-type',                help='generative model type for continuous problems', choices=['nnet','svm','gp'])
