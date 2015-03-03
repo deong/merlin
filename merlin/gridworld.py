@@ -131,7 +131,7 @@ def maze_goal_states(maze, tasks, mu, cov):
     return goals
 
 
-#
+    
 # write an instance of the multimaze problem
 #
 # Ideally, this should be unified with the graph instances, but the
@@ -163,6 +163,38 @@ def write_maze_instance(maze, goals):
                         line += "{} ".format(-10)
             print(line)
     print("\n")
+
+
+#
+# map the maze onto an internal multigraph representation
+#
+def graph_from_maze(maze, goals):
+    tasks, rows, cols = goals.shape
+
+    # first create all the nodes in a grid
+    g = nx.MultiDiGraph()
+    for i in range(rows):
+        for j in range(cols):
+            g.add_node(i*cols + j)
+
+    # now start connecting the nodes, observing walls
+    for row in range(rows):
+        for col in range(cols):
+            source = rowcol_to_index(maze, row, col)
+            neighbors = [(x, col) for x in [row-1, row+1]] + [(row, y) for y in [col-1, col+1]]
+            for action, (x,y) in enumerate(neighbors):
+                target = rowcol_to_index(maze, x, y)
+
+                # if there's a valid target node, add an edge to the target with the
+                # corresponding cost. If not, then there's a wall, so add a self-edge
+                # with a fixed negative cost.
+                if target != None:
+                    for task in range(tasks):
+                        g.add_edge(source, target, weight=goals[task, x, y])
+                else:
+                    for task in range(tasks):
+                        g.add_edge(source, source, weight=-10)
+    return g
 
 
 #

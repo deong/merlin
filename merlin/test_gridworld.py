@@ -51,6 +51,7 @@ class TestMultimaze1(unittest.TestCase):
                     if self.goals[task, row, col] > 0:
                         goal_loc = grid.rowcol_to_index(self.maze, row, col)
             self.assertTrue(goal_loc != None)
+
  
 
 if __name__ == '__main__':
